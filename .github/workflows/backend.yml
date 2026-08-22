@@ -31,11 +31,16 @@ jobs:
           dotnet publish --configuration Release --output ./output
           popd
 
+      - name: 'Zip deployment package'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output/*' -DestinationPath './release.zip' -Force
+
       - name: 'Run Azure Functions Action'
         uses: Azure/functions-action@v1
         id: fa
         with:
           app-name: 'pimg'
           slot-name: 'Production'
-          package: './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
+          package: './release.zip'
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
