@@ -21,7 +21,7 @@ public class ImportEipaDataFunction
 
     //Uruchamiene o 2:00 UTC(w nocy)
     [Function("ImportEipaStaticData")]
-    public async Task Run([TimerTrigger("0 2 18 * * *")] TimerInfo myTimer)
+    public async Task Run([TimerTrigger("0 30 18 * * *")] TimerInfo myTimer)
     //public async Task Run([TimerTrigger("0 */1 * * * *")] TimerInfo myTimer)
     {
         if (!(_configuration.GetValue<bool>("ImportEnabled"))) return;

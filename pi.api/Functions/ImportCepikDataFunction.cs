@@ -24,7 +24,7 @@ public class ImportCepikDataFunction
 
     //Uruchomienie o 3:00 UTC(w nocy)
     [Function("ImportCepikVehiclesData")]
-    public async Task Run([TimerTrigger("0 8 18 * * *")] TimerInfo myTimer)
+    public async Task Run([TimerTrigger("0 32 18 * * *")] TimerInfo myTimer)
     //public async Task Run([TimerTrigger("0 */1 * * * *")] TimerInfo myTimer)
     {
         if (!(_configuration.GetValue<bool>("ImportEnabled"))) return;

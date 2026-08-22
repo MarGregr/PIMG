@@ -36,7 +36,7 @@ public class ImportEipaDynamicDataFunction
         {
             _logger.LogError($"[Timer] Błąd podczas wykonywania funkcji ImportEipaDynamicData: {ex.Message}");
         }
-
+        //TODO: Następne uruchomienie jest o tej samej godzinie co obecne
         _logger.LogInformation($"[Timer] Następne uruchomienie ImportEipaDynamicData: {myTimer.ScheduleStatus?.Next}");
     }
 }
