@@ -1,0 +1,53 @@
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- statystyki pojazdy
+select 
+extract(year from data_ostatniej_rejestracji_w_kraju) as rok, 
+count(p.*) as liczba,
+case p.rodzaj_pojazdu when 'CINIK SAMOCHODOWY' THEN 'SAMOCH覦 CI石AROWY' when 'SAMOCH覦 SPECJALNY' then 'SAMOCH覦 CI石AROWY' when 'SAMOCHODOWY INNY' THEN 'SAMOCH覦 CI石AROWY' when 'SAM.CI石. UNIWERSALNY' then 'SAMOCH覦 CI石AROWY'
+else p.rodzaj_pojazdu end as rodzaj
+from pojazdy p
+where p.rodzaj_paliwa='ENERGIA ELEKTRYCZNA'
+and rodzaj_pojazdu not in ('PRZYCZEPA CI石AROWA', 'PRZYCZEPA CI石AROWA ROLNICZA', 'PRZYCZEPA LEKKA', 'PRZYCZEPA SPECJALNA','POJAZD WOLNOBIE疦Y-KOLEJKA TURYSTYCZNA')
+group by extract(year from data_ostatniej_rejestracji_w_kraju),
+case p.rodzaj_pojazdu when 'CINIK SAMOCHODOWY' THEN 'SAMOCH覦 CI石AROWY' when 'SAMOCH覦 SPECJALNY' then 'SAMOCH覦 CI石AROWY' when 'SAMOCHODOWY INNY' THEN 'SAMOCH覦 CI石AROWY' when 'SAM.CI石. UNIWERSALNY' then 'SAMOCH覦 CI石AROWY'
+else p.rodzaj_pojazdu end
+
+
+--
+
+CREATE TABLE favorite_pools (
+    id BIGSERIAL PRIMARY KEY,
+    pool_id BIGINT NOT NULL,
+    user_id VARCHAR NOT NULL,
+    UNIQUE (pool_id, user_id)
+);
+
+CREATE TABLE user_logs (
+    id SERIAL PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    user_oid VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    name VARCHAR(512) NOT NULL
+);
+
+
+CREATE TABLE IF NOT EXISTS projects (
+    id UUID PRIMARY KEY,
+    name VARCHAR(512) NOT NULL,
+    description TEXT,
+    radius INT NOT NULL,
+    location GEOGRAPHY(Point, 4326) NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_projects_location ON projects USING GIST(location);
+CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
+
+CREATE TABLE pojazdy_powiaty_summary (
+  nazwa_powiatu text DEFAULT NULL,
+  kod_woj_powiat integer DEFAULT NULL,
+  liczba_bev integer DEFAULT NULL,
+  liczba_wszystkich integer DEFAULT NULL
+);

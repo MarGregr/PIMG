@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "pi.api": {
+      "commandName": "Project",
+      "commandLineArgs": "start --port 7200",
+      "launchBrowser": false
+    }
+  }
+}

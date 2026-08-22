@@ -1,0 +1,33 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.37216.2
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "pi.client", "PI.Client\pi.client.esproj", "{C1E97B0F-968F-1034-919D-463FE0EAB638}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "pi.api", "pi.api\pi.api.csproj", "{5D56C987-36B3-422D-92CC-D32DC5834563}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C1E97B0F-968F-1034-919D-463FE0EAB638}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C1E97B0F-968F-1034-919D-463FE0EAB638}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C1E97B0F-968F-1034-919D-463FE0EAB638}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{C1E97B0F-968F-1034-919D-463FE0EAB638}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C1E97B0F-968F-1034-919D-463FE0EAB638}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C1E97B0F-968F-1034-919D-463FE0EAB638}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{5D56C987-36B3-422D-92CC-D32DC5834563}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5D56C987-36B3-422D-92CC-D32DC5834563}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5D56C987-36B3-422D-92CC-D32DC5834563}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5D56C987-36B3-422D-92CC-D32DC5834563}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {CC91120E-26C7-495C-8DF5-802CE2488378}
+	EndGlobalSection
+EndGlobal
