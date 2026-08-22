@@ -124,7 +124,7 @@ public class PoolsFunctions
                 var pool = new PoolFullResponseModel
                 {
                     Id = reader.GetInt32(reader.GetOrdinal("id")),
-                    Name = reader.GetFieldValue<string?>(reader.GetOrdinal("name")) ?? string.Empty,
+                    Name = reader.GetString(reader.GetOrdinal("name")),
                     Lng = point.X,
                     Lat = point.Y,
                     OperatorName = reader.GetFieldValue<string?>(reader.GetOrdinal("operator_name")) ?? string.Empty,
