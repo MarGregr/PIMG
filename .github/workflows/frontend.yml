@@ -3,7 +3,7 @@ name: Deploy Frontend (Vue to Azure Web App)
 on:
   push:
     branches:
-      - master
+      - main
     paths:
       - 'pi.client/**'
   workflow_dispatch:

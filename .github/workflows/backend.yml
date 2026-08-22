@@ -3,7 +3,7 @@ name: Build and deploy .NET Core app to Azure Function App - pimg
 on:
   push:
     branches:
-      - master
+      - main
     paths:
       - 'pi.api/**'
   workflow_dispatch:
