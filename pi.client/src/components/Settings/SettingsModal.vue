@@ -31,10 +31,9 @@
 
 
 <script setup>
-  import { ref, computed } from 'vue';
+  import { ref } from 'vue';
   import Dialog from 'primevue/dialog';
   import Button from 'primevue/button';
-  import InputNumber from 'primevue/inputnumber';
   import Select from 'primevue/select';
   import Message from 'primevue/message';
   import apiClient from './../../services/api';
@@ -42,8 +41,8 @@
   const visible = ref(false);
   const errors = ref({});
   const operators = ref([]);
-
   const selectedOperator = ref(null);
+  const isSubmitting = ref(false);
 
   const open = () => {
     errors.value = {};
@@ -55,10 +54,8 @@
   };
 
   const validate = () => {
-    const e = {};
-    if (selectedOperator.value === null) {
-      e.operator = 'Operator jest wymagany';
-      errors.value = e;
+    if (!selectedOperator.value) {
+      errors.value = { operator: 'Operator jest wymagany' };
       return false;
     }
     errors.value = {};
@@ -68,27 +65,40 @@
   const submitForm = async () => {
     if (!validate()) return;
 
+    isSubmitting.value = true;
     try {
-
       const payload = {
-        operatorId: selectedOperator.value.id,
+        operatorId: selectedOperator.value.id
       };
 
-      const response = await apiClient.put('/settings', payload)
+      await apiClient.put('/settings', payload);
+
       close();
     } catch (err) {
-      console.error('Błąd podczas ustawień operatora:', err);
+      console.error('Błąd podczas zapisywania operatora:', err);
     } finally {
+      isSubmitting.value = false;
+    }
+  };
+
+  const OnDialogShow = async () => {
+    try {
+      const opsResponse = await apiClient.get('/operators');
+      operators.value = opsResponse.data;
+
+      const settingsResponse = await apiClient.get('/settings');
+
+      const currentOperatorId = settingsResponse.data?.operator_id;
+
+      if (currentOperatorId) {
+        selectedOperator.value = operators.value.find(op => op.id === currentOperatorId) || null;
+      }
+    } catch (err) {
+      console.error('Błąd podczas pobierania danych operatorów:', err);
     }
   };
 
   defineExpose({ open });
-
-  const OnDialogShow = async () => {
-
-    const response = await apiClient.get("/operators");
-    operators.value = response.data;
-  }
 </script>
 
 <style scoped>

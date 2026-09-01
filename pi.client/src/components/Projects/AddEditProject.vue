@@ -36,6 +36,21 @@
           </div>
           <Message size="small" severity="error" v-if="errors.location">{{ errors.location }}</Message>
         </div>
+
+        <div class="mt-2 field-block">
+          <!--Operator-->
+          <label class="field-label">Operator</label>
+          <Select v-model="selectedOperator"
+                  :options="operators"
+                  optionLabel="name"
+                  filterBy="name"
+                  class="w-full"
+                  :filter="true"
+                  filterPlaceholder="Szukaj operatora..."
+                  checkmark
+                  @change="clearError('operator')" />
+          <Message size="small" severity="error" v-if="errors.operator">{{ errors.operator }}</Message>
+        </div>
       </div>
 
       <!--Kolumna 2-->
@@ -61,6 +76,18 @@
       <Message size="small" severity="error" v-if="errors.chargingPoints" class="mt-1">{{ errors.chargingPoints }}</Message>
     </div>
 
+    <!--Predykcja-->
+    <div class="mt-6 flex gap-2">
+      <div style="border:solid 1px #8888ff; border-radius:4px; padding:6px; min-width: 75px">
+        {{predictValue}}
+      </div>
+      <Button label="Predykcja"
+              icon="pi pi-calculator"
+              :loading="isSubmitting"
+              @click="predict" />
+    </div>
+
+    <!--Zapis-->
     <div class="mt-6 flex justify-end gap-2">
       <Button label="Anuluj" severity="secondary" @click="onCancel" />
       <Button label="Zapisz"
@@ -69,6 +96,16 @@
               @click="submitForm" />
     </div>
   </div>
+
+  <!--Blokada ekranu-->
+  <BlockUI :blocked="isBlocked" :fullScreen="true">
+    <template #default>
+      <div v-if="isBlocked" class="loading-overlay">
+        <ProgressSpinner style="width: 50px; height: 50px" strokeWidth="4" />
+        <p>Trwa przetwarzanie danych, proszę czekać...</p>
+      </div>
+    </template>
+  </BlockUI>
 </template>
 
 <script setup>
@@ -79,14 +116,26 @@
   import Message from 'primevue/message';
   import Button from 'primevue/button';
   import apiClient from '../../services/api';
+  import Dialog from 'primevue/dialog';
+  import Select from 'primevue/select';
   import ProjectMapModal from './ProjectMapModal.vue';
   import ChargingPointsList from './ChargingPointsList.vue';
+  import BlockUI from 'primevue/blockui';
+  import ProgressSpinner from 'primevue/progressspinner';
+
+
+  const isBlocked = ref(false);
 
   const router = useRouter();
   const route = useRoute();
 
   const projectId = computed(() => route.params.id);
   const isEditing = computed(() => !!projectId.value);
+
+  const operators = ref([]);
+  const selectedOperator = ref(null);
+
+  const predictValue = ref(null);;
 
   const isSubmitting = ref(false);
 
@@ -101,6 +150,36 @@
   const modalRef = ref(null);
   const modalVisible = ref(false);
   const errors = ref({});
+
+  const fetchOperators = async () => {
+    try {
+      const response = await apiClient.get('/operators');
+      operators.value = response.data;
+      // const temp = operators.value;
+      // console.log(temp);
+    } catch (err) {
+      console.error('Błąd podczas pobierania operatorów:', err);
+    }
+  };
+
+  const fetchDefaultUserOperator = async () => {
+    //Wywołanie tylko dla nowego projektu
+    if (isEditing.value) return;
+
+    try {
+      const response = await apiClient.get('/settings');
+      const userSettings = response.data;
+
+      const defaultOperatorId = userSettings?.operator_id;
+
+      //Przypisanie jeśli użytkownik ma ustawionego domyślnego operatora w bazie
+      if (defaultOperatorId && operators.value.length > 0) {
+        selectedOperator.value = operators.value.find(op => op.id === defaultOperatorId) || null;
+      }
+    } catch (err) {
+      console.error('Błąd podczas pobierania ustawień użytkownika:', err);
+    }
+  };
 
   //computed określa czy lokalizacja jest wybrana
   const hasLocation = computed(() => {
@@ -139,7 +218,7 @@
 
     try {
       const response = await apiClient.get(`/projects/${projectId.value}`);
-      const data = response.data;
+      const data = response.data
 
       form.value = {
         name: data.name ?? '',
@@ -150,13 +229,24 @@
         },
         chargingPoints: data.chargingPoints ?? [],
       };
+
+      // const cos1 = data.operatorId
+      // const cos2 = data.operator_id
+      // const projectOperatorId = data.operatorId ?? data.operator_id;
+      // if (projectOperatorId && operators.value.length > 0) {
+      if (data.operatorId) {
+        selectedOperator.value = operators.value.find(op => op.id === data.operatorId) || null;
+      }
+
     } catch (err) {
       console.error('Błąd podczas pobierania danych projektu:', err);
     }
   };
 
-  onMounted(() => {
-    fetchProjectData();
+  onMounted(async () => {
+    await fetchOperators();
+    await fetchDefaultUserOperator();
+    await fetchProjectData();
   });
 
   const validate = () => {
@@ -172,6 +262,10 @@
 
     if (!hasLocation.value) {
       errs.location = 'Lokalizacja na mapie jest wymagana';
+    }
+
+    if (!selectedOperator.value) {
+      errs.operator = 'Operator jest wymagany';
     }
 
     if (!form.value.chargingPoints || form.value.chargingPoints.length === 0) {
@@ -192,6 +286,7 @@
         id: projectId.value,
         name: form.value.name.trim(),
         description: form.value.description.trim(),
+        operatorId: selectedOperator.value?.id,
         lat: form.value.location.lat,
         lng: form.value.location.lng,
         chargingPoints: form.value.chargingPoints,
@@ -206,6 +301,41 @@
       console.error('Błąd podczas zapisywania projektu:', err);
     } finally {
       isSubmitting.value = false;
+    }
+  };
+
+  const predict = async () => {
+    if (!validate()) return;
+
+    isBlocked.value = true;
+
+    isSubmitting.value = true;
+    try {
+
+
+
+      const payload = {
+        id: projectId.value,
+        name: form.value.name.trim(),
+        description: form.value.description.trim(),
+        operatorId: selectedOperator.value?.id,
+        lat: form.value.location.lat,
+        lng: form.value.location.lng,
+        chargingPoints: form.value.chargingPoints,
+      };
+
+      const method = 'post';
+      const url = '/projects/predict';
+
+      const response = await apiClient({ method, url, data: payload });
+
+      predictValue.value = `${(response.data * 100).toFixed(2)} %`
+      // router.push('/projects');
+    } catch (err) {
+      console.error('Błąd podczas predyckji:', err);
+    } finally {
+      isSubmitting.value = false;
+      isBlocked.value = false;
     }
   };
 

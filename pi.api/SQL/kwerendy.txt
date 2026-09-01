@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS projects (
     name VARCHAR(512) NOT NULL,
     description TEXT,
     location GEOGRAPHY(Point, 4326) NOT NULL,
+    operator_id INTEGER NOT NULL, 
     user_id VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -64,3 +65,5 @@ CREATE TABLE user_settings (
     user_oid VARCHAR(255) NOT NULL PRIMARY KEY,
     operator_id integer DEFAULT NULL
 );
+
+ALTER TABLE pools ADD usage_percentage NUMERIC DEFAULT NULL

@@ -1,75 +1,127 @@
-﻿////TU GETUSER I Z TEGO POBRAC OPERATORA USERA
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using Npgsql;
+using System.Net;
+using System.Security.Claims;
+using System.Text.Json;
 
-//using Microsoft.AspNetCore.Authorization;
-//using Microsoft.AspNetCore.Http;
-//using Microsoft.AspNetCore.Mvc;
-//using Microsoft.Azure.Functions.Worker;
-//using Microsoft.Azure.Functions.Worker.Http;
-//using Microsoft.Extensions.Logging;
-//using Npgsql;
-//using System.Net;
-//using System.Security.Claims;
+namespace pi.api.Functions;
 
-//namespace pi.api.Functions;
+public class SettingsFunctions
+{
+    private readonly ILogger<SettingsFunctions> _logger;
+    private readonly NpgsqlDataSource _dataSource;
 
-//public class OperatorsFunctions
-//{
-//    private readonly ILogger<OperatorsFunctions> _logger;
-//    private readonly NpgsqlDataSource _dataSource;
+    public SettingsFunctions(ILogger<SettingsFunctions> logger, NpgsqlDataSource dataSource)
+    {
+        _logger = logger;
+        _dataSource = dataSource;
+    }
 
-//    public OperatorsFunctions(ILogger<OperatorsFunctions> logger, NpgsqlDataSource dataSource)
-//    {
-//        _logger = logger;
-//        _dataSource = dataSource;
-//    }
+    [Function("GetUserSettings")]
+    [Authorize]
+    public async Task<IActionResult> GetUserSettings(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "settings")] HttpRequest req)
+    {
+        var userOid = req.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                      ?? req.HttpContext.User.FindFirst("oid")?.Value;
 
-//    [Function("GetOperators")]
-//    [Authorize]
-//    public async Task<IActionResult> GetOperators(
-//        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "operators")] HttpRequest req)
-//    {
-//        var operatorsList = new List<OperatorResponseModel>();
-//        try
-//        {
-//            await using var conn = await _dataSource.OpenConnectionAsync();
+        if (string.IsNullOrEmpty(userOid))
+            return new UnauthorizedResult();
 
-//            string query = @"
-//                    SELECT 
-//                        o.id as id, 
-//                        COALESCE(o.short_name, o.name) as name 
-//                    FROM operators o
-//                    where o.active = true
-//                    ORDER by o.name ASC";
+        try
+        {
+            await using var conn = await _dataSource.OpenConnectionAsync();
+            string query = "SELECT operator_id FROM user_settings WHERE user_oid = @userOid";
 
-//            await using var cmd = new NpgsqlCommand(query, conn);
-//            await using var reader = await cmd.ExecuteReaderAsync();
+            await using var cmd = new NpgsqlCommand(query, conn);
+            cmd.Parameters.AddWithValue("userOid", userOid);
 
-//            while (await reader.ReadAsync())
-//            {
+            await using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                var settings = new UserSettingsResponseModel
+                {
+                    Operator_id = reader.GetInt32(reader.GetOrdinal("operator_id"))
+                };
+                return new OkObjectResult(settings);
+            }
 
-//                operatorsList.Add(new OperatorResponseModel
-//                {
-//                    Id = reader.GetInt32(reader.GetOrdinal("id")),
-//                    Name = reader.GetString(reader.GetOrdinal("name"))
-//                });
-//            }
-//        }
-//        catch (Exception ex)
-//        {
-//            _logger.LogError($"Błąd podczas odczytu bazy danych: {ex.Message}");
-//            return new StatusCodeResult((int)HttpStatusCode.InternalServerError);
-//        }
+            return new OkObjectResult(new { operator_id = (int?)null });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Błąd podczas odczytu ustawień: {ex.Message}");
+            return new StatusCodeResult((int)HttpStatusCode.InternalServerError);
+        }
+    }
 
-//        //(!) OkObjectResult zamienia w JSON pierwszą literę nazwy pola na małą (!)
-//        return new OkObjectResult(operatorsList);
-//    }
+    [Function("UpdateUserSettings")]
+    [Authorize]
+    public async Task<IActionResult> UpdateUserSettings(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "settings")] HttpRequest req)
+    {
+        var userOid = req.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                      ?? req.HttpContext.User.FindFirst("oid")?.Value;
 
+        if (string.IsNullOrEmpty(userOid))
+            return new UnauthorizedResult();
 
+        UpdateSettingsRequestModel request;
+        try
+        {
+            request = await JsonSerializer.DeserializeAsync<UpdateSettingsRequestModel>(
+                req.Body,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            );
 
-//}
+            if (request == null || request.OperatorId <= 0)
+                return new BadRequestObjectResult("Nieprawidłowy operator_id.");
+        }
+        catch
+        {
+            return new BadRequestObjectResult("Błędny format JSON.");
+        }
 
-//public class OperatorResponseModel
-//{
-//    public int Id { get; set; }
-//    public string Name { get; set; }
-//}
+        try
+        {
+            await using var conn = await _dataSource.OpenConnectionAsync();
+
+            //UPSERT
+            string query = @"
+                INSERT INTO user_settings (user_oid, operator_id) 
+                VALUES (@userOid, @operatorId)
+                ON CONFLICT (user_oid) 
+                DO UPDATE SET operator_id = EXCLUDED.operator_id;";
+
+            await using var cmd = new NpgsqlCommand(query, conn);
+            cmd.Parameters.AddWithValue("userOid", userOid);
+            cmd.Parameters.AddWithValue("operatorId", request.OperatorId);
+
+            await cmd.ExecuteNonQueryAsync();
+
+            return new OkResult();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Błąd zapisu: {ex.Message}");
+            return new ObjectResult(new { error = ex.Message, inner = ex.InnerException?.Message })
+            {
+                StatusCode = (int)HttpStatusCode.InternalServerError
+            };
+        }
+    }
+}
+
+public class UserSettingsResponseModel
+{
+    public int Operator_id { get; set; }
+}
+
+public class UpdateSettingsRequestModel
+{
+    public int OperatorId { get; set; }
+}

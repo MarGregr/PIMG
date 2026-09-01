@@ -10,13 +10,13 @@ using System.Text.Json;
 
 namespace pi.api.Functions;
 
-public class ProjectsFunction
+public class ProjectsFunctions
 {
-    private readonly ILogger<ProjectsFunction> _logger;
+    private readonly ILogger<ProjectsFunctions> _logger;
     private readonly NpgsqlDataSource _dataSource;
     private readonly ProjectsService _projectsService;
 
-    public ProjectsFunction(ILogger<ProjectsFunction> logger, NpgsqlDataSource dataSource, ProjectsService projectsService)
+    public ProjectsFunctions(ILogger<ProjectsFunctions> logger, NpgsqlDataSource dataSource, ProjectsService projectsService)
     {
         _logger = logger;
         _dataSource = dataSource;
@@ -39,7 +39,7 @@ public class ProjectsFunction
 
         //ST_Y pobiera szerokość (lat), ST_X pobiera długość (lng)
         cmd.CommandText = """
-            SELECT id, name, description, ST_Y(location::geometry) as lat, ST_X(location::geometry) as lng, created_at, updated_at 
+            SELECT id, name, description, ST_Y(location::geometry) as lat, ST_X(location::geometry) as lng, operator_id, created_at, updated_at 
             FROM projects 
             WHERE user_id = @userId
             ORDER BY created_at DESC
@@ -57,9 +57,10 @@ public class ProjectsFunction
                 Description = reader.IsDBNull(2) ? null : reader.GetString(2),
                 Lat = reader.GetDouble(3),
                 Lng = reader.GetDouble(4),
+                OperatorId = reader.GetInt32(5),
                 UserId = userId,
-                CreatedAt = reader.GetDateTime(5),
-                UpdatedAt = reader.GetDateTime(6)
+                CreatedAt = reader.GetDateTime(6),
+                UpdatedAt = reader.GetDateTime(7)
             });
         }
 
@@ -115,14 +116,15 @@ public class ProjectsFunction
             {
                 cmd.Transaction = tx;
                 cmd.CommandText = """
-                INSERT INTO projects (id, name, description, location, user_id, created_at, updated_at)
-                VALUES (@id, @name, @description, ST_GeomFromText(@point, 4326), @userId, @createdAt, @updatedAt)
+                INSERT INTO projects (id, name, description, location, operator_id, user_id, created_at, updated_at)
+                VALUES (@id, @name, @description, ST_GeomFromText(@point, 4326), @operatorId, @userId, @createdAt, @updatedAt)
                 """;
 
                 cmd.Parameters.AddWithValue("id", projectId);
                 cmd.Parameters.AddWithValue("name", data.Name.Trim());
                 cmd.Parameters.AddWithValue("description", (object)data.Description?.Trim() ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("point", $"POINT({data.Lng.ToString(System.Globalization.CultureInfo.InvariantCulture)} {data.Lat.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
+                cmd.Parameters.AddWithValue("operatorId", data.OperatorId);
                 cmd.Parameters.AddWithValue("userId", userId);
                 cmd.Parameters.AddWithValue("createdAt", now);
                 cmd.Parameters.AddWithValue("updatedAt", now);
@@ -207,7 +209,8 @@ public class ProjectsFunction
                 cmd.CommandText = """
                     UPDATE projects 
                     SET name = @name, description = @description, 
-                    location = ST_GeomFromText(@point, 4326), updated_at = @updatedAt
+                    location = ST_GeomFromText(@point, 4326), updated_at = @updatedAt,
+                    operator_id = @operatorId
                     WHERE id = @id AND user_id = @userId
                     """;
 
@@ -216,6 +219,7 @@ public class ProjectsFunction
                 cmd.Parameters.AddWithValue("description", (object)data.Description?.Trim() ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("point", $"POINT({data.Lng.ToString(System.Globalization.CultureInfo.InvariantCulture)} {data.Lat.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
                 cmd.Parameters.AddWithValue("userId", userId);
+                cmd.Parameters.AddWithValue("operatorId", data.OperatorId);
                 cmd.Parameters.AddWithValue("updatedAt", now);
 
                 await cmd.ExecuteNonQueryAsync();
@@ -262,6 +266,24 @@ public class ProjectsFunction
     }
 
 
+    // POST /api/projects/predict
+    [Function("PredictProject")]
+    [Authorize]
+    public async Task<IActionResult> PredictProject(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "projects/predict")] HttpRequest req)
+    {
+        var userId = GetUserId(req);
+        if (string.IsNullOrEmpty(userId)) return new UnauthorizedResult();
+
+        string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+        var project = JsonSerializer.Deserialize<ProjectDto>(requestBody, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var value = await _projectsService.PredictProject(project);
+
+        return new OkObjectResult(value);
+    }
+
+
     // DELETE /api/projects/{id}
     [Function("DeleteProject")]
     [Authorize]
@@ -291,33 +313,6 @@ public class ProjectsFunction
             await cmd.ExecuteNonQueryAsync();
         }
         return new OkObjectResult(id);
-    }
-
-
-    // GET /api/projects/{id}/predict
-    [Function("PredictProject")]
-    //[Authorize]
-    [AllowAnonymous]
-    public async Task<IActionResult> PredictProject(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "projects/{id:guid}/predict")] HttpRequest req,
-        Guid id)
-    {
-        var userId = GetUserId(req);
-        //if (string.IsNullOrEmpty(userId)) return new UnauthorizedResult();
-
-        var project = await _projectsService.GetProjectByGuid(id);
-        if (project == null)
-        {
-            return new NotFoundResult();
-        }
-        //if (project.UserId != userId)
-        //{
-        //    return new UnauthorizedResult();
-        //}
-
-        var value = await _projectsService.PredictProject(project);
-
-        return new OkObjectResult(value);
     }
 
 

@@ -8,7 +8,7 @@ import VehiclesReport from '../components/Reports/VehiclesReport.vue'
 import OperatorsReport from '../components/Reports/OperatorsReport.vue'
 import Empty from '../components/Empty.vue'
 import Projects from '../components/Projects.vue'
-import ProjectsNew from '../components/Projects/ProjectsNew.vue'
+import ProjectsNew from '../components/Projects/AddEditProject.vue'
 
 
 const routes = [

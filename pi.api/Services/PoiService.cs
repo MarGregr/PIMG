@@ -130,31 +130,36 @@ out center;";
 
         var stopwatchApi = Stopwatch.StartNew();
 
-        foreach (var endpoint in endpoints)
+        for (int i = 0; i < 3; i++)
         {
-            Console.WriteLine($"Endpoint: {endpoint}");
-            try
+
+
+            foreach (var endpoint in endpoints)
             {
-                var response = await HttpClient.PostAsync(endpoint, content);
-                if (response.IsSuccessStatusCode)
+                Console.WriteLine($"Endpoint: {endpoint}");
+                try
                 {
-                    using var jsonStream = await response.Content.ReadAsStreamAsync();
-                    Console.WriteLine($"Całkowity czas wykonania pobierania danych z API: {stopwatchApi.ElapsedMilliseconds / 1000.0:F2} s");
-                    var result = await JsonSerializer.DeserializeAsync<OverpassResponse>(jsonStream, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    return result?.Elements ?? new List<OsmElement>();
+                    var response = await HttpClient.PostAsync(endpoint, content);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        using var jsonStream = await response.Content.ReadAsStreamAsync();
+                        Console.WriteLine($"Całkowity czas wykonania pobierania danych z API: {stopwatchApi.ElapsedMilliseconds / 1000.0:F2} s");
+                        var result = await JsonSerializer.DeserializeAsync<OverpassResponse>(jsonStream, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        return result?.Elements ?? new List<OsmElement>();
+                    }
+                    else
+                    {
+                        Console.WriteLine($"response: {response.StatusCode}");
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    Console.WriteLine($"response: {response.StatusCode}");
+                    Console.WriteLine($"Błąd: {ex.Message}");
+                    continue;
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Błąd: {ex.Message}");
-                continue;
             }
         }
-        
+
 
         throw new Exception("Nie udało się pobrać danych z żadnego serwera Overpass.");
     }

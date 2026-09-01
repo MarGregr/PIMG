@@ -19,6 +19,7 @@ public class ProjectDto
     public string Description { get; set; }
     public double Lat { get; set; }
     public double Lng { get; set; }
+    public int OperatorId { get; set; }
     public ICollection<ProjectChargingPointDto> ChargingPoints { get; set; } = [];
     public string UserId { get; set; }
 
@@ -52,7 +53,7 @@ public class ProjectsService
         await using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = """
-            SELECT id, name, description, ST_Y(location::geometry) as lat, ST_X(location::geometry) as lon, user_id, created_at, updated_at 
+            SELECT id, name, description, ST_Y(location::geometry) as lat, ST_X(location::geometry) as lon, operator_id, user_id, created_at, updated_at 
             FROM projects 
             WHERE id = @id
             """;
@@ -68,9 +69,10 @@ public class ProjectsService
                     Description = reader.IsDBNull(2) ? null : reader.GetString(2),
                     Lat = reader.GetDouble(3),
                     Lng = reader.GetDouble(4),
-                    UserId = reader.GetString(5),
-                    CreatedAt = reader.GetDateTime(6),
-                    UpdatedAt = reader.GetDateTime(7)
+                    OperatorId = reader.GetInt32(5),
+                    UserId = reader.GetString(6),
+                    CreatedAt = reader.GetDateTime(7),
+                    UpdatedAt = reader.GetDateTime(8)
                 };
             }
         }
@@ -105,10 +107,10 @@ public class ProjectsService
     {
         using var predictor = new Predictor();
 
-        double avgSessionPrice = 1.49;
-        int myOperatorId = 0;
-        int pointsCount = 1;
-        int totalPower = 22;
+        double avgSessionPrice = (double) project.ChargingPoints.Average(p => p.Price);
+        int myOperatorId = project.OperatorId;
+        int pointsCount = project.ChargingPoints.Count();
+        int totalPower = project.ChargingPoints.Sum(p => p.Power);
 
         int radius = 850;
         var bevCount = await _powiatyService.GetBevByLocation(project.Lng, project.Lat);
