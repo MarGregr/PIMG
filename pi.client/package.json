@@ -14,6 +14,7 @@
   "dependencies": {
     "@azure/msal-browser": "^5.12.0",
     "@primeuix/themes": "^2.0.3",
+    "@tailwindcss/vite": "^4.3.3",
     "@vue-leaflet/vue-leaflet": "^0.10.1",
     "axios": "^1.17.0",
     "chart.js": "^4.5.1",
@@ -21,6 +22,8 @@
     "leaflet.markercluster": "^1.5.3",
     "primeicons": "^7.0.0",
     "primevue": "^4.5.5",
+    "tailwindcss": "^4.3.3",
+    "tailwindcss-primeui": "^0.6.1",
     "vue": "^3.5.32",
     "vue-leaflet-markercluster": "^0.6.1",
     "vue-router": "^4.6.4"

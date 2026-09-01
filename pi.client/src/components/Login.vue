@@ -9,7 +9,6 @@
       </div>
 
       <div v-else>
-        <!--<p>Aby uzyskać dostęp do aplikacji, zaloguj się za pomocą swojego konta służbowego lub szkolnego.</p>-->
         <button @click="handleLogin" class="btn-msal">
           <svg class="ms-icon" viewBox="0 0 23 23" xmlns="http://www.w3.org/2000/svg">
             <path fill="#f35325" d="M0 0h11v11H0z" />

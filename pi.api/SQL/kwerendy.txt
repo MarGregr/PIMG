@@ -36,7 +36,6 @@ CREATE TABLE IF NOT EXISTS projects (
     id UUID PRIMARY KEY,
     name VARCHAR(512) NOT NULL,
     description TEXT,
-    radius INT NOT NULL,
     location GEOGRAPHY(Point, 4326) NOT NULL,
     user_id VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -50,4 +49,18 @@ CREATE TABLE pojazdy_powiaty_summary (
   kod_woj_powiat integer DEFAULT NULL,
   liczba_bev integer DEFAULT NULL,
   liczba_wszystkich integer DEFAULT NULL
+);
+
+CREATE TABLE IF NOT EXISTS projects_points (
+  project_id UUID NOT NULL,
+  power integer NOT NULL,
+  price integer NOT NULL
+);
+ALTER TABLE projects_points ADD FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE;
+
+
+
+CREATE TABLE user_settings (
+    user_oid VARCHAR(255) NOT NULL PRIMARY KEY,
+    operator_id integer DEFAULT NULL
 );

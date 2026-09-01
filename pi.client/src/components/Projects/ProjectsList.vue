@@ -1,5 +1,6 @@
 <template>
-  <div class="projects-list">
+  <ConfirmDialog />
+  <div>
     <DataTable :value="projects"
                :loading="loading"
                dataKey="id"
@@ -34,12 +35,6 @@
         </template>
       </Column>
 
-      <Column field="radius" header="Zasięg" style="width: 100px">
-        <template #body="{ data }">
-          <Tag :value="formatRadius(data.radius)" severity="info" />
-        </template>
-      </Column>
-
       <Column field="createdAt" header="Utworzono" style="width: 130px">
         <template #body="{ data }">
           <span class="date-cell">{{ formatDate(data.createdAt) }}</span>
@@ -47,7 +42,8 @@
       </Column>
 
       <Column style="width: 80px">
-        <template #body="{ data }">
+        <template #body="{ data, index }">
+          <!--Edycja-->
           <Button icon="pi pi-pencil"
                   text
                   rounded
@@ -55,35 +51,45 @@
                   severity="secondary"
                   @click="emit('edit', data)"
                   v-tooltip.left="'Edytuj projekt'" />
+          <!--Usuwanie-->
+          <Button icon="pi pi-trash"
+                  text
+                  rounded
+                  size="small"
+                  severity="danger"
+                  @click="confirmDelete(index, data)"
+                  v-tooltip.left="'Usuń'" />
         </template>
       </Column>
     </DataTable>
 
-    <div class="add-row">
+    <div>
       <Button label="Nowy projekt"
-              icon="pi pi-plus"
-              outlined
+              icon="pi pi-plus" class="mt-3"
               @click="emit('create')" />
     </div>
+
   </div>
 </template>
 
 <script setup>
+  import { ref } from 'vue';
   import DataTable from 'primevue/datatable';
   import Column from 'primevue/column';
   import Button from 'primevue/button';
   import Tag from 'primevue/tag';
+  import ConfirmDialog from 'primevue/confirmdialog';
+  import { useConfirm } from 'primevue/useconfirm';
 
-  defineProps({
-    /** @type {import('./ProjectFormModal.vue').Project[]} */
+  const props = defineProps({
     projects: { type: Array, default: () => [] },
     loading: { type: Boolean, default: false },
   });
 
-  const emit = defineEmits(['create', 'edit']);
+  // const projects = ref([...props.projects]);
 
-  const formatRadius = (r) =>
-    r >= 1000 ? `${(r / 1000).toFixed(1).replace('.0', '')} km` : `${r} m`;
+  const confirm = useConfirm();
+  const emit = defineEmits(['create', 'edit', 'delete']);
 
   const formatDate = (iso) => {
     if (!iso) return '—';
@@ -91,14 +97,32 @@
       day: '2-digit', month: '2-digit', year: 'numeric',
     });
   };
+
+  const confirmDelete = (index, data) => {
+    console.log(data)
+    confirm.require({
+      message: 'Czy na pewno chcesz usunąć ten projekt?',
+      header: 'Potwierdzenie usunięcia',
+      icon: 'pi pi-exclamation-triangle',
+      rejectProps: {
+        label: 'Anuluj',
+        severity: 'secondary',
+        outlined: true
+      },
+      acceptProps: {
+        label: 'Usuń',
+        severity: 'danger'
+      },
+      accept: () => {
+        // projects.value.splice(index, 1);
+        emit('delete', data);
+      }
+    });
+  };
+
 </script>
 
 <style scoped>
-  .projects-list {
-    display: flex;
-    flex-direction: column;
-  }
-
   .table-header {
     display: flex;
     align-items: center;
@@ -146,11 +170,5 @@
   .date-cell {
     font-size: 0.8125rem;
     color: #6b7280;
-  }
-
-  .add-row {
-    padding: 1rem 0 0.25rem;
-    display: flex;
-    justify-content: flex-start;
   }
 </style>

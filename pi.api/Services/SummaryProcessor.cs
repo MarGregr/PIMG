@@ -29,7 +29,7 @@ public class SummaryProcessor
             var powiatyInfo = await LoadPowiatyInfoAsync(conn, transaction);
             var summaryDict = new Dictionary<int, CountHolder>();
 
-            // Zliczanie BEV
+            //Zliczanie BEV
             string sqlBevCounts = @"
                 SELECT rejestracja_powiat, wojewodztwo_kod, COUNT(*)::integer 
                 FROM pojazdy 

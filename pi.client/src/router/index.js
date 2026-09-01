@@ -4,10 +4,12 @@ import Login from '../components/Login.vue'
 import { msalInstance } from '../authConfig'
 import AppLayout from '../layouts/AppLayout.vue'
 import AuthLayout from '../layouts/AuthLayout.vue'
-import VehiclesReport from '../components/VehiclesReport.vue'
-import OperatorsReport from '../components/OperatorsReport.vue'
+import VehiclesReport from '../components/Reports/VehiclesReport.vue'
+import OperatorsReport from '../components/Reports/OperatorsReport.vue'
 import Empty from '../components/Empty.vue'
 import Projects from '../components/Projects.vue'
+import ProjectsNew from '../components/Projects/ProjectsNew.vue'
+
 
 const routes = [
   {
@@ -25,6 +27,17 @@ const routes = [
         path: '/projects',
         name: 'projects',
         component: Projects,
+      },
+      {
+        path: '/projects/new',
+        name: 'projects_new',
+        component: ProjectsNew,
+      },
+      {
+        path: '/projects/:id/edit',
+        name: 'project_edit',
+        component: ProjectsNew,
+        props: true,
       },
       {
         path: '/reports/vehicles',

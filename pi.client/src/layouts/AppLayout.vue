@@ -1,4 +1,5 @@
 <template>
+  <SettingsModal ref="modalRef" />
   <Toolbar class="app-toolbar">
     <template #start>
       <div class="toolbar-start">
@@ -56,6 +57,7 @@
   import Menu from 'primevue/menu'
   import Divider from 'primevue/divider'
   import { msalInstance } from './../authConfig';
+  import SettingsModal from '../components/Settings/SettingsModal.vue'
 
   const account = ref(msalInstance.getAllAccounts()[0] ?? null);
 
@@ -68,6 +70,7 @@
       .join('')
   })
 
+  const modalRef = ref(null)
   const userMenu = ref()
   const toggleUserMenu = (event) => userMenu.value.toggle(event)
 
@@ -91,6 +94,18 @@
   ])
 
   const userMenuItems = ref([
+    {
+      label: 'Ustawienia',
+      icon: 'pi pi-cog',
+      command: async () => {
+        try {
+          modalRef.value?.open();
+
+        } catch (error) {
+          console.error("Błąd podczas wylogowywania:", error)
+        }
+      }
+    },
     {
       label: 'Wyloguj się',
       icon: 'pi pi-sign-out',

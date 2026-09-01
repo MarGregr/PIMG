@@ -28,7 +28,7 @@
   import ProgressSpinner from 'primevue/progressspinner';
   import DataTable from 'primevue/datatable';
   import Column from 'primevue/column';
-  import apiClient from '../services/api';
+  import apiClient from '../../services/api';
 
   const loading = ref(true);
   const error = ref(null);

@@ -1,10 +1,16 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Npgsql;
+﻿using Npgsql;
 using OSMApi;
 using pi.api.Additional;
 using static pi.api.Additional.Predictor;
 
 namespace pi.api.Services;
+
+public class ProjectChargingPointDto
+{
+    public Guid ProjectId { get; set; }
+    public int Power { get; set; }
+    public decimal Price { get; set; }
+}
 
 public class ProjectDto
 {
@@ -13,8 +19,11 @@ public class ProjectDto
     public string Description { get; set; }
     public double Lat { get; set; }
     public double Lng { get; set; }
-    public int Radius { get; set; }
+    public ICollection<ProjectChargingPointDto> ChargingPoints { get; set; } = [];
     public string UserId { get; set; }
+
+    public double Prediction { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -36,36 +45,60 @@ public class ProjectsService
 
     public async Task<ProjectDto?> GetProjectByGuid(Guid guid)
     {
-        await using var conn = await _dataSource.OpenConnectionAsync();
-        await using var cmd = conn.CreateCommand();
+        ProjectDto? project = null;
 
-        cmd.CommandText = """
-            SELECT id, name, description, radius, ST_Y(location::geometry) as lat, ST_X(location::geometry) as lon, user_id, created_at, updated_at 
+        await using var conn = await _dataSource.OpenConnectionAsync();
+
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = """
+            SELECT id, name, description, ST_Y(location::geometry) as lat, ST_X(location::geometry) as lon, user_id, created_at, updated_at 
             FROM projects 
             WHERE id = @id
             """;
-        cmd.Parameters.AddWithValue("id", guid);
+            cmd.Parameters.AddWithValue("id", guid);
 
-        var projects = new List<ProjectDto>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (reader.HasRows)
-        {
-            await reader.ReadAsync();
-            return new ProjectDto
+            await using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
             {
-                Id = reader.GetGuid(0),
-                Name = reader.GetString(1),
-                Description = reader.IsDBNull(2) ? null : reader.GetString(2),
-                Radius = reader.GetInt32(3),
-                Lat = reader.GetDouble(4),
-                Lng = reader.GetDouble(5),
-                UserId = reader.GetString(6),
-                CreatedAt = reader.GetDateTime(7),
-                UpdatedAt = reader.GetDateTime(8)
-            };
+                project = new ProjectDto
+                {
+                    Id = reader.GetGuid(0),
+                    Name = reader.GetString(1),
+                    Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    Lat = reader.GetDouble(3),
+                    Lng = reader.GetDouble(4),
+                    UserId = reader.GetString(5),
+                    CreatedAt = reader.GetDateTime(6),
+                    UpdatedAt = reader.GetDateTime(7)
+                };
+            }
         }
 
-        return null;
+        if (project == null) return null;
+
+        await using (var cpCmd = conn.CreateCommand())
+        {
+            cpCmd.CommandText = """
+            SELECT project_id, power, price
+            FROM projects_points
+            WHERE project_id = @projectId
+            """;
+            cpCmd.Parameters.AddWithValue("projectId", guid);
+
+            await using var cpReader = await cpCmd.ExecuteReaderAsync();
+            while (await cpReader.ReadAsync())
+            {
+                project.ChargingPoints.Add(new ProjectChargingPointDto
+                {
+                    ProjectId = cpReader.GetGuid(0),
+                    Power = cpReader.GetInt32(1),
+                    Price =  (decimal)cpReader.GetInt32(2) / 100
+                });
+            }
+        }
+
+        return project;
     }
 
     public async Task<float> PredictProject(ProjectDto project)
