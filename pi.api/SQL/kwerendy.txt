@@ -67,3 +67,5 @@ CREATE TABLE user_settings (
 );
 
 ALTER TABLE pools ADD usage_percentage NUMERIC DEFAULT NULL
+
+-- TO POWY¯EJ JU¯ WSZYSTKO W BAZIE DANYCH AZURE --
