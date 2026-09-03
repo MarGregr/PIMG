@@ -6,13 +6,13 @@ using pi.api.Collectors;
 
 namespace pi.api.Functions;
 
-public class ImportEipaDynamicDataFunction
+public class ImportEipaDynamicDataFunctions
 {
-    private readonly ILogger<ImportEipaDynamicDataFunction> _logger;
+    private readonly ILogger<ImportEipaDynamicDataFunctions> _logger;
     private readonly NpgsqlDataSource _dataSource;
     private readonly IConfiguration _configuration;
 
-    public ImportEipaDynamicDataFunction(ILogger<ImportEipaDynamicDataFunction> logger, NpgsqlDataSource dataSource, IConfiguration configuration)
+    public ImportEipaDynamicDataFunctions(ILogger<ImportEipaDynamicDataFunctions> logger, NpgsqlDataSource dataSource, IConfiguration configuration)
     {
         _logger = logger;
         _dataSource = dataSource;

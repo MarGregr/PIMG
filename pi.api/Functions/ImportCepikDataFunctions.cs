@@ -12,9 +12,9 @@ public class ImportCepikDataFunction
     private readonly ILogger<ImportCepikDataFunction> _logger;
     private readonly NpgsqlDataSource _dataSource;
     private readonly IConfiguration _configuration;
-    private readonly SummaryProcessor _summaryProcessor;
+    private readonly PowiatySummaryProcessor _summaryProcessor;
 
-    public ImportCepikDataFunction(ILogger<ImportCepikDataFunction> logger, NpgsqlDataSource dataSource, IConfiguration configuration, SummaryProcessor summaryProcessor)
+    public ImportCepikDataFunction(ILogger<ImportCepikDataFunction> logger, NpgsqlDataSource dataSource, IConfiguration configuration, PowiatySummaryProcessor summaryProcessor)
     {
         _logger = logger;
         _dataSource = dataSource;

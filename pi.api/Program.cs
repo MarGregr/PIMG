@@ -54,7 +54,8 @@ var host = new HostBuilder()
         services.AddScoped<PoolsService>();
         services.AddScoped<PoiService>();
         services.AddScoped<PowiatyService>();
-        services.AddScoped<SummaryProcessor>();
+        services.AddScoped<PowiatySummaryProcessor>();
+        services.AddScoped<PoolsSummaryProcessor>();
 
     }).ConfigureLogging(logging =>
     {

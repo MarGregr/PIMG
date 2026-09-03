@@ -5,7 +5,7 @@ using Microsoft.Azure.Functions.Worker;
 
 namespace pi.api.Functions;
 
-public class TestFunction
+public class TestFunctions
 {
   
 
