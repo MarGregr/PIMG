@@ -2,7 +2,7 @@ using Npgsql;
 
 namespace pi.api.Additional;
 
-public class SummaryProcessor
+public class PowiatySummaryProcessor
 {
     private readonly NpgsqlDataSource _dataSource;
 
@@ -14,7 +14,7 @@ public class SummaryProcessor
         public int LiczbaWszystkich { get; set; }
     }
 
-    public SummaryProcessor(NpgsqlDataSource dataSource)
+    public PowiatySummaryProcessor(NpgsqlDataSource dataSource)
     {
         _dataSource = dataSource;
     }

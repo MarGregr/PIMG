@@ -68,4 +68,12 @@ CREATE TABLE user_settings (
 
 ALTER TABLE pools ADD usage_percentage NUMERIC DEFAULT NULL
 
+CREATE TABLE IF NOT EXISTS pools_summary (
+    pool_code text DEFAULT NULL,
+    pool_point_count INT NOT NULL DEFAULT 0,
+    charging_total BIGINT NOT NULL DEFAULT 0,
+    availability_total BIGINT NOT NULL DEFAULT 0,
+    usage_percentage NUMERIC(9, 6) NOT NULL DEFAULT 0.000000
+);
+
 -- TO POWY¯EJ JU¯ WSZYSTKO W BAZIE DANYCH AZURE --
