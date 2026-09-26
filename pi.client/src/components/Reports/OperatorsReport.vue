@@ -2,6 +2,18 @@
   <div class="card">
     <h2>Operatorzy</h2>
 
+    <div class="filter-container mb-4">
+      <label for="voivodeship-select" class="filter-label">Województwo:</label>
+      <Select id="voivodeship-select"
+              v-model="selectedVoivodeship"
+              :options="voivodeshipsOptions"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Wybierz województwo"
+              class="filter-select"
+              @change="fetchData" />
+    </div>
+
     <div v-if="loading" class="flex justify-content-center padding-2">
       <ProgressSpinner />
     </div>
@@ -29,18 +41,43 @@
   import DataTable from 'primevue/datatable';
   import Column from 'primevue/column';
   import apiClient from '../../services/api';
+  import Select from 'primevue/select';
 
   const loading = ref(true);
   const error = ref(null);
 
   const tableData = ref([])
 
+  const selectedVoivodeship = ref(0);
+
+  const voivodeshipsOptions = computed(() => {
+    return [
+      { label: 'Wszystkie województwa', value: 0 },
+      { label: 'dolnośląskie', value: 2 },
+      { label: 'kujawsko-pomorskie', value: 4 },
+      { label: 'lubelskie', value: 6 },
+      { label: 'lubuskie', value: 8 },
+      { label: 'łódzkie', value: 10 },
+      { label: 'małopolskie', value: 12 },
+      { label: 'mazowieckie', value: 14 },
+      { label: 'opolskie', value: 16 },
+      { label: 'podkarpackie', value: 18 },
+      { label: 'podlaskie', value: 20 },
+      { label: 'pomorskie', value: 22 },
+      { label: 'śląskie', value: 24 },
+      { label: 'świętokrzyskie', value: 26 },
+      { label: 'warmińsko-mazurskie', value: 28 },
+      { label: 'wielkopolskie', value: 30 },
+      { label: 'zachodniopomorskie', value: 32 },
+    ];
+  });
+
   const fetchData = async () => {
     try {
       loading.value = true;
       error.value = null;
 
-      const response = await apiClient.get('/reports/operators');
+      const response = await apiClient.get(`/reports/operators/${selectedVoivodeship.value}`);
       tableData.value = await response.data;
     } catch (err) {
       error.value = err.message || 'Wystąpił nieoczekiwany błąd.';
@@ -99,5 +136,10 @@
   :deep(.text-right-header) {
     text-align: right !important;
     justify-content: flex-end !important;
+  }
+
+  .filter-select {
+    width: 100%;
+    max-width: 18rem;
   }
 </style>

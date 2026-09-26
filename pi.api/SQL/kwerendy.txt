@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS projects (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE projects ADD prediction NUMERIC DEFAULT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_projects_location ON projects USING GIST(location);
 CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
 
@@ -75,5 +77,13 @@ CREATE TABLE IF NOT EXISTS pools_summary (
     availability_total BIGINT NOT NULL DEFAULT 0,
     usage_percentage NUMERIC(9, 6) NOT NULL DEFAULT 0.000000
 );
+
+ALTER TABLE pools ADD kod_woj_powiat INTEGER DEFAULT NULL;
+
+UPDATE pools p
+SET kod_woj_powiat = pp.kod_woj_powiat
+FROM powiaty_polygons pp
+WHERE ST_Contains(pp.polygon, p.location::geometry)
+  AND p.kod_woj_powiat IS NULL;
 
 -- TO POWY¯EJ JU¯ WSZYSTKO W BAZIE DANYCH AZURE --

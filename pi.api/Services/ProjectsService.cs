@@ -23,10 +23,26 @@ public class ProjectDto
     public ICollection<ProjectChargingPointDto> ChargingPoints { get; set; } = [];
     public string UserId { get; set; }
 
-    public double Prediction { get; set; }
+    public double? Prediction { get; set; }
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public int? ReversePercentile { get; set; }
+    public List<ChartPoint> UsageChartData { get; set; }
+}
+
+public class ChartPoint
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+public class ProjectPredictDto
+{
+    public double Prediction { get; set; }
+    public int ReversePercentile { get; set; }
+    public List<ChartPoint> UsageChartData { get; set; }
+
 }
 
 public class ProjectsService
@@ -53,7 +69,7 @@ public class ProjectsService
         await using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = """
-            SELECT id, name, description, ST_Y(location::geometry) as lat, ST_X(location::geometry) as lon, operator_id, user_id, created_at, updated_at 
+            SELECT id, name, description, ST_Y(location::geometry) as lat, ST_X(location::geometry) as lon, operator_id, user_id, created_at, updated_at, prediction 
             FROM projects 
             WHERE id = @id
             """;
@@ -62,6 +78,7 @@ public class ProjectsService
             await using var reader = await cmd.ExecuteReaderAsync();
             if (await reader.ReadAsync())
             {
+                double? prediction = reader.IsDBNull(9) ? null : reader.GetDouble(9);
                 project = new ProjectDto
                 {
                     Id = reader.GetGuid(0),
@@ -72,7 +89,10 @@ public class ProjectsService
                     OperatorId = reader.GetInt32(5),
                     UserId = reader.GetString(6),
                     CreatedAt = reader.GetDateTime(7),
-                    UpdatedAt = reader.GetDateTime(8)
+                    UpdatedAt = reader.GetDateTime(8),
+                    Prediction = prediction,
+                    ReversePercentile = prediction == null ? null : await CalcRevPercentile(prediction.Value),
+                    UsageChartData = await PrepareChartData(),
                 };
             }
         }
@@ -95,7 +115,7 @@ public class ProjectsService
                 {
                     ProjectId = cpReader.GetGuid(0),
                     Power = cpReader.GetInt32(1),
-                    Price =  (decimal)cpReader.GetInt32(2) / 100
+                    Price = (decimal)cpReader.GetInt32(2) / 100
                 });
             }
         }
@@ -103,11 +123,61 @@ public class ProjectsService
         return project;
     }
 
-    public async Task<float> PredictProject(ProjectDto project)
+    protected async Task<int> CalcRevPercentile(double prediction)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync();
+
+        await using var cmd = conn.CreateCommand();
+
+        cmd.CommandText = """
+            SELECT (SELECT COUNT(*) FROM pools_summary WHERE usage_percentage >= @prediction) * 1.0
+            /
+            (SELECT COUNT(*) FROM pools_summary);
+            """;
+        cmd.Parameters.AddWithValue("prediction", prediction);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+
+        await reader.ReadAsync();
+        return Convert.ToInt32(reader.GetDouble(0) * 100);
+
+    }
+
+    protected async Task<List<ChartPoint>> PrepareChartData()
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync();
+
+        await using var cmd = conn.CreateCommand();
+
+        cmd.CommandText = """
+            SELECT COUNT (*), round(usage_percentage) FROM pools_summary 
+            WHERE availability_total > 0
+            GROUP BY round(usage_percentage)
+            ORDER BY round(usage_percentage) asc
+            """;
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+
+        List<ChartPoint> result = new List<ChartPoint>();
+
+        while (await reader.ReadAsync())
+        {
+            result.Add(new ChartPoint
+            {
+                X = reader.GetInt32(1),
+                Y = reader.GetInt32(0),
+            });
+        }
+        return result;
+    }
+
+
+
+    public async Task<ProjectPredictDto> PredictProject(ProjectDto project)
     {
         using var predictor = new Predictor();
 
-        double avgSessionPrice = (double) project.ChargingPoints.Average(p => p.Price);
+        double avgSessionPrice = (double)project.ChargingPoints.Average(p => p.Price);
         int myOperatorId = project.OperatorId;
         int pointsCount = project.ChargingPoints.Count();
         int totalPower = project.ChargingPoints.Sum(p => p.Power);
@@ -125,7 +195,7 @@ public class ProjectsService
         var modelData = new ModelInput
         {
             BevCount = bevCount,
-            AvgSessionPrice = avgSessionPrice,
+            AvgSessionPrice = avgSessionPrice * 100, // bo model był trenowany na cenie w groszach
             ChargingPools = chargingPools,
             NearestChargingDistance = nearestChargingDistance,
             PoolLat = project.Lat,
@@ -136,7 +206,14 @@ public class ProjectsService
             Tourism = tourism,
         };
 
-        var result = predictor.PredictOccupancyRatio(modelData);
+        var resultPrediction = predictor.PredictOccupancyRatio(modelData) * 100;
+
+        var result = new ProjectPredictDto
+        {
+            Prediction = resultPrediction,
+            ReversePercentile = await CalcRevPercentile(resultPrediction),
+            UsageChartData = await PrepareChartData(),
+        };
         return result;
     }
 }

@@ -26,7 +26,7 @@ public class PoolsSummaryProcessor
         _dataSource = dataSource;
     }
 
-    
+
     public async Task<int> RefreshSummaryAsync()
     {
         await using var conn = await _dataSource.OpenConnectionAsync();
@@ -69,22 +69,22 @@ public class PoolsSummaryProcessor
             {
                 while (await reader.ReadAsync())
                 {
-                    string code = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
-                    if (string.IsNullOrEmpty(code)) continue;
+                    string pointCode = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
+                    if (string.IsNullOrEmpty(pointCode)) continue;
 
                     var row = new PointStatusRow
                     {
                         PointId = reader.GetInt32(0),
-                        Code = code,
+                        Code = pointCode,
                         Status = reader.GetInt32(2),
                         Availability = reader.GetInt32(3),
                         Ts = reader.GetDateTime(4)
                     };
 
-                    if (!pointGroups.TryGetValue(code, out var group))
+                    if (!pointGroups.TryGetValue(pointCode, out var group))
                     {
                         group = new List<PointStatusRow>();
-                        pointGroups[code] = group;
+                        pointGroups[pointCode] = group;
                     }
                     group.Add(row);
                 }
@@ -96,7 +96,7 @@ public class PoolsSummaryProcessor
             //TODO: Zmienić na datetime.now
             DateTime endTime = new DateTime(2026, 6, 28, 19, 0, 0, DateTimeKind.Utc);
 
-            foreach (var (code, group) in pointGroups)
+            foreach (var (pointCode, group) in pointGroups)
             {
                 var sorted = group.OrderBy(x => x.Ts).ToList();
 
@@ -149,27 +149,25 @@ public class PoolsSummaryProcessor
                     else if (prevAvaStatus == 1 && availability == 0 && avaStart.HasValue)
                     {
                         long durationSec = (long)(ts - avaStart.Value).TotalSeconds;
-                        if (durationSec != 0)
-                        {
-                            totalAvaSec += durationSec;
-                        }
+                        totalAvaSec += durationSec;
+
                         avaStart = null;
                     }
 
                     prevAvaStatus = availability;
                 }
 
+                //Domknięcie sesji dostępności po pętli
                 if (avaStart.HasValue)
                 {
                     long durationSec = (long)(endTime - avaStart.Value).TotalSeconds;
-                    if (durationSec > 0)
-                    {
-                        totalAvaSec += durationSec;
-                    }
+                    totalAvaSec += durationSec;
                 }
 
-                chargingDurations[code] = totalChargeSec;
-                availabilityDurations[code] = totalAvaSec;
+                //TODO: Rozważyć czy zrobić domykanie sesji ładowania
+
+                chargingDurations[pointCode] = totalChargeSec;
+                availabilityDurations[pointCode] = totalAvaSec;
             }
 
 

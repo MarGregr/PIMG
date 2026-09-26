@@ -1,6 +1,32 @@
 <template>
   <div class="card">
-    <h2>Rejestracje pojazdów BEV (według daty ostatniej rejestracji)</h2>
+    <h2 class="mb-4">Rejestracje pojazdów BEV (według daty ostatniej rejestracji)</h2>
+
+    <div class="filter-container mb-4">
+      <label for="voivodeship-select" class="filter-label">Województwo:</label>
+      <Select id="voivodeship-select"
+              v-model="selectedVoivodeship"
+              :options="voivodeshipsOptions"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Wybierz województwo"
+              class="filter-select"
+              :disabled="loadingVoivodeships"
+              @change="fetchData" />
+    </div>
+
+    <div class="filter-container mb-4">
+      <label for="fueltype-select" class="filter-label">BEV / hybrydy:</label>
+      <Select id="fueltype-select"
+              v-model="selectedFuelType"
+              :options="fuelTypeOptions"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Wybierz BEV / hybrydy"
+              class="filter-select"
+              :disabled="loadingVoivodeships"
+              @change="fetchData" />
+    </div>
 
     <div v-if="loading" class="flex justify-content-center padding-2">
       <ProgressSpinner />
@@ -58,12 +84,57 @@
   import ProgressSpinner from 'primevue/progressspinner';
   import DataTable from 'primevue/datatable';
   import Column from 'primevue/column';
+  import Select from 'primevue/select';
   import apiClient from '../../services/api';
+
+  const VEHICLE_TYPE_COLORS = {
+    'CIĄGNIK ROLNICZY': '#8D6E63',    // Brązowy
+    'MOTOCYKL': '#AB47BC',            // Fioletowy
+    'MOTOROWER': '#EC407A',           // Różowy
+    'SAMOCHÓD OSOBOWY': '#42A5F5',    // Niebieski
+    'AUTOBUS': '#FFA726',             // Pomarańczowy
+    'SAMOCHÓD CIĘŻAROWY': '#66BB6A',  // Zielony
+    'TROLEJBUS': '#26A69A'            // Turkusowy
+  };
+
+  const FALLBACK_COLORS = ['#78909C', '#5C6BC0', '#D4E157', '#FF7043'];
+
+  const getColorForType = (type, fallbackIndex) => {
+    const normalizedType = type ? type.trim().toUpperCase() : '';
+    if (VEHICLE_TYPE_COLORS[normalizedType]) {
+      return VEHICLE_TYPE_COLORS[normalizedType];
+    }
+    return FALLBACK_COLORS[fallbackIndex % FALLBACK_COLORS.length];
+  };
 
   const chartData = ref({ labels: [], datasets: [] });
   const chartOptions = ref({});
   const loading = ref(true);
   const error = ref(null);
+
+  const selectedVoivodeship = ref("ALL");
+  const voivodeshipsList = ref([]);
+  const loadingVoivodeships = ref(false);
+
+  const voivodeshipsOptions = computed(() => {
+    return [
+      { label: 'Wszystkie województwa', value: "ALL" },
+      ...voivodeshipsList.value.map(item => ({
+        label: item.name,
+        value: item.name
+      }))
+    ];
+  });
+
+  const selectedFuelType = ref(1);
+
+  const fuelTypeOptions = computed(() => {
+    return [
+      { label: 'tylko BEV', value: 1 },
+      { label: 'tylko hybrydowe', value: 2 },
+      { label: 'BEV oraz hybrydowe', value: 0 },
+    ];
+  });
 
   const tableColumns = computed(() => {
     return chartData.value.datasets.map(dataset => dataset.label);
@@ -86,7 +157,6 @@
     });
   });
 
-  //Formatowanie liczb do polskiego standardu (np. 12345 -> 12 345)
   const formatNumber = (value) => {
     if (value === undefined || value === null) return 0;
     return value.toLocaleString('pl-PL');
@@ -95,7 +165,6 @@
   const transformData = (rawData) => {
     const years = [...new Set(rawData.map(item => item.rok))].sort((a, b) => a - b);
     const vehicleTypes = [...new Set(rawData.map(item => item.rodzaj_pojazdu))];
-    const colors = ['#42A5F5', '#66BB6A', '#FFA726', '#AB47BC', '#EC407A'];
 
     const datasets = vehicleTypes.map((type, index) => {
       const dataForYears = years.map(year => {
@@ -103,11 +172,13 @@
         return found ? found.liczba : 0;
       });
 
+      const color = getColorForType(type, index);
+
       return {
         label: type,
         data: dataForYears,
-        backgroundColor: colors[index % colors.length],
-        borderColor: colors[index % colors.length],
+        backgroundColor: color,
+        borderColor: color,
         borderWidth: 1,
         stack: 'v-stack'
       };
@@ -119,12 +190,28 @@
     };
   };
 
+  const fetchVoivodeships = async () => {
+    try {
+      loadingVoivodeships.value = true;
+      const response = await apiClient.get('/reports/vehicles/voivodeships');
+      voivodeshipsList.value = response.data;
+    } catch (err) {
+      console.error('Błąd podczas pobierania listy województw:', err);
+    } finally {
+      loadingVoivodeships.value = false;
+    }
+  };
+
   const fetchData = async () => {
     try {
       loading.value = true;
       error.value = null;
 
-      const response = await apiClient.get('/reports/vehicles');
+      const endpoint = selectedVoivodeship.value !== "ALL"
+        ? `/reports/vehicles/${selectedFuelType.value}/${encodeURIComponent(selectedVoivodeship.value)}`
+        : `/reports/vehicles/${selectedFuelType.value}`;
+
+      const response = await apiClient.get(endpoint);
       const rawData = await response.data;
       chartData.value = transformData(rawData);
 
@@ -136,7 +223,6 @@
     }
   };
 
-  //Konfiguracja osi i styli wykresu
   const setChartOptions = () => {
     chartOptions.value = {
       responsive: true,
@@ -168,6 +254,7 @@
 
   onMounted(() => {
     setChartOptions();
+    fetchVoivodeships();
     fetchData();
   });
 </script>
@@ -179,6 +266,24 @@
     border-radius: 10px;
     margin-bottom: 2rem;
     box-shadow: 0 2px 1px -1px rgba(0,0,0,.2), 0 1px 1px 0 rgba(0,0,0,.14), 0 1px 3px 0 rgba(0,0,0,.12);
+  }
+
+  .filter-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .filter-label {
+    font-weight: 600;
+    white-space: nowrap;
+    margin: 0;
+    line-height: 1;
+  }
+
+  .filter-select {
+    width: 100%;
+    max-width: 18rem;
   }
 
   .h-30rem {
@@ -199,20 +304,14 @@
     margin-top: 1.5rem;
   }
 
-  /* Kolor dla globalnego motywu PrimeVue w kolumnie Suma */
   :deep(.text-primary) {
     font-weight: 600;
-/*    color: var(--primary-color, #42A5F5) !important;*/
   }
 
-  /* Wyrównanie do prawej w datatable */
-
-  /* Wyrównanie samych liczb w komórkach */
   :deep(.text-right) {
     text-align: right !important;
   }
 
-  /* Wyrównanie tekstu, nagłówka i strzałki sortowania (Flexbox) */
   :deep(.text-right-header) {
     text-align: right !important;
     justify-content: flex-end !important;

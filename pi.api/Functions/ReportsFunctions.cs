@@ -1,10 +1,13 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Google.Protobuf.WellKnownTypes;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using NpgsqlTypes;
+using pi.api.Services;
 using System.Net;
 
 namespace pi.api.Functions;
@@ -13,58 +16,34 @@ public class ReportsFunctions
 {
     private readonly ILogger<ReportsFunctions> _logger;
     private readonly NpgsqlDataSource _dataSource;
+    private readonly ReportVehicleService _reportVehicleService;
 
-    public ReportsFunctions(ILogger<ReportsFunctions> logger, NpgsqlDataSource dataSource)
+    public ReportsFunctions(ILogger<ReportsFunctions> logger, NpgsqlDataSource dataSource, ReportVehicleService reportVehicleService)
     {
         _logger = logger;
         _dataSource = dataSource;
+        _reportVehicleService = reportVehicleService;
     }
 
     [Function("GetReportsVehicles")]
     [Authorize]
     public async Task<HttpResponseData> GetReportsVehicles(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "reports/vehicles")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "reports/vehicles/{vehicleFuelType}/{voivodeship?}")] HttpRequestData req, VehicleFuelType vehicleFuelType, string? voivodeship)
     {
-        var result = new List<VehicleStatReportModel>();
-
+        if (!System.Enum.IsDefined(typeof(VehicleFuelType), vehicleFuelType))
+        {
+            return await CreateResponseAsync(req, HttpStatusCode.BadRequest, new { error = "Nieprawidłowy parametr." });
+        }
         try
         {
-            await using var conn = await _dataSource.OpenConnectionAsync();
-
-            string query = @"
-                    select 
-extract(year from data_ostatniej_rejestracji_w_kraju) as rok, 
-count(p.*) as liczba,
-case p.rodzaj_pojazdu when 'CIĄGNIK SAMOCHODOWY' THEN 'SAMOCHÓD CIĘŻAROWY' when 'SAMOCHÓD SPECJALNY' then 'SAMOCHÓD CIĘŻAROWY' when 'SAMOCHODOWY INNY' THEN 'SAMOCHÓD CIĘŻAROWY' when 'SAM.CIĘŻ. UNIWERSALNY' then 'SAMOCHÓD CIĘŻAROWY'
-else p.rodzaj_pojazdu end as rodzaj
-from pojazdy p
-where p.rodzaj_paliwa='ENERGIA ELEKTRYCZNA'
-and rodzaj_pojazdu not in ('PRZYCZEPA CIĘŻAROWA', 'PRZYCZEPA CIĘŻAROWA ROLNICZA', 'PRZYCZEPA LEKKA', 'PRZYCZEPA SPECJALNA','POJAZD WOLNOBIEŻNY-KOLEJKA TURYSTYCZNA')
-group by extract(year from data_ostatniej_rejestracji_w_kraju),
-case p.rodzaj_pojazdu when 'CIĄGNIK SAMOCHODOWY' THEN 'SAMOCHÓD CIĘŻAROWY' when 'SAMOCHÓD SPECJALNY' then 'SAMOCHÓD CIĘŻAROWY' when 'SAMOCHODOWY INNY' THEN 'SAMOCHÓD CIĘŻAROWY' when 'SAM.CIĘŻ. UNIWERSALNY' then 'SAMOCHÓD CIĘŻAROWY'
-else p.rodzaj_pojazdu end
-ORDER by extract(year from data_ostatniej_rejestracji_w_kraju)";
-
-            await using var cmd = new NpgsqlCommand(query, conn);
-            await using var reader = await cmd.ExecuteReaderAsync();
-
-            while (await reader.ReadAsync())
-            {
-                result.Add(new VehicleStatReportModel
-                {
-                    rok = reader.GetInt16(reader.GetOrdinal("rok")),
-                    rodzaj_pojazdu = reader.GetString(reader.GetOrdinal("rodzaj")),
-                    liczba = reader.GetInt32(reader.GetOrdinal("liczba")),
-                });
-            }
+            var result = await _reportVehicleService.GetReportsVehicles(vehicleFuelType, voivodeship);
+            return await CreateResponseAsync(req, HttpStatusCode.OK, result);
         }
         catch (Exception ex)
         {
             _logger.LogError($"Błąd: {ex.Message}");
             return await CreateResponseAsync(req, HttpStatusCode.InternalServerError, new { error = "Wystąpił błąd serwera." });
         }
-
-        return await CreateResponseAsync(req, HttpStatusCode.OK, result);
     }
 
     [Function("GetReportsPowiaty")]
@@ -112,10 +91,44 @@ ORDER by extract(year from data_ostatniej_rejestracji_w_kraju)";
     }
 
 
+    //TODO: przenieść do service'a
+    [Function("GetPojazdyWojewodztwa")]
+    [Authorize]
+    public async Task<IActionResult> GetVehiclesVoivodeships(
+    [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "reports/vehicles/voivodeships")] HttpRequest req)
+    {
+        var result = new List<VoivodeshipResponse>();
+        try
+        {
+            await using var conn = await _dataSource.OpenConnectionAsync();
+
+            string query = @"SELECT DISTINCT rejestracja_wojewodztwo AS name FROM pojazdy ORDER BY rejestracja_wojewodztwo";
+            await using var cmd = new NpgsqlCommand(query, conn);
+            await using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                result.Add(new VoivodeshipResponse
+                {
+                    Name = reader.GetString(reader.GetOrdinal("name")),
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Błąd: {ex.Message}");
+            return new StatusCodeResult((int)HttpStatusCode.InternalServerError);
+        }
+
+        //(!) OkObjectResult zamienia w JSON pierwszą literę nazwy pola na małą (!)
+        return new OkObjectResult(result);
+    }
+
+
     [Function("GetReportsOperators")]
     [Authorize]
-    public async Task<IActionResult> GetPoints(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "reports/operators")] HttpRequest req)
+    public async Task<IActionResult> GetReportsOperators(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "reports/operators/{kodWojPowiat}")] HttpRequest req, int kodWojPowiat)
     {
         var result = new List<OperatorResponse>();
         try
@@ -123,18 +136,27 @@ ORDER by extract(year from data_ostatniej_rejestracji_w_kraju)";
             await using var conn = await _dataSource.OpenConnectionAsync();
 
             string query = @"
-                    SELECT o.id, o.name, COALESCE(p.pools,0) as pools FROM public.operators o
-                    LEFT JOIN (SELECT operator_id, COUNT(*) AS pools FROM pools WHERE active=true GROUP BY operator_id) p ON p.operator_id = o.id
-                    WHERE o.active=true ORDER BY COALESCE(p.pools,0) DESC";
+                    SELECT o.name, SUM(COALESCE(p.pools, 0)) as pools FROM public.operators o
+                    LEFT JOIN 
+	                    (SELECT operator_id, COUNT(*) AS pools FROM pools 
+	                    WHERE active=true and (@kod_woj_powiat = 0 or kod_woj_powiat / 100 = @kod_woj_powiat)
+	                    GROUP BY operator_id) p ON p.operator_id = o.id
+                    WHERE o.active=true 
+                    GROUP BY o.name
+                    ORDER BY SUM(COALESCE(p.pools, 0)) DESC";
+
+
 
             await using var cmd = new NpgsqlCommand(query, conn);
+
+            cmd.Parameters.AddWithValue("kod_woj_powiat", kodWojPowiat);
+
             await using var reader = await cmd.ExecuteReaderAsync();
 
             while (await reader.ReadAsync())
             {
                 result.Add(new OperatorResponse
                 {
-                    OperatorId = reader.GetInt32(reader.GetOrdinal("id")),
                     Name = reader.GetString(reader.GetOrdinal("name")),
                     PoolsQuantity = reader.GetInt32(reader.GetOrdinal("pools")),
                 });
@@ -152,6 +174,13 @@ ORDER by extract(year from data_ostatniej_rejestracji_w_kraju)";
 
 }
 
+
+public enum VehicleFuelType
+{
+    All = 0,
+    Bev = 1,
+    Hybrid = 2,
+}
 
 public class VehicleStatReportModel
 {
@@ -171,4 +200,9 @@ public class OperatorResponse
     public long OperatorId { get; set; }
     public string Name { get; set; }
     public long PoolsQuantity { get; set; }
+}
+
+public class VoivodeshipResponse
+{
+    public string Name { get; set; }
 }

@@ -77,14 +77,29 @@
     </div>
 
     <!--Predykcja-->
-    <div class="mt-6 flex gap-2">
-      <div style="border:solid 1px #8888ff; border-radius:4px; padding:6px; min-width: 75px">
-        {{predictValue}}
+    <div class="mt-6 flex items-center gap-2">
+      <div style="border:solid 1px #8888ff; border-radius:4px; padding:6px; min-width: 75px" v-if="predictValue !== null">
+        {{(predictValue).toFixed(2)}} %
       </div>
       <Button label="Predykcja"
               icon="pi pi-calculator"
               :loading="isSubmitting"
               @click="predict" />
+      <div class="flex justify-content-center gap-2" v-if="predictValue !== null">
+        <ToggleSwitch v-model="showChart" inputId="switchChart" />
+        <label for="switchChart">Pokaż wykres</label>
+      </div>
+    </div>
+
+    <!--Odwrotny percentyl (top x %)-->
+    <!--TODO: Wymyślić lepszy tekst-->
+    <div class="mt-6 flex gap-2" v-if="reversePercentile !== null">
+      Jesteś w top {{reversePercentile}}% stacji
+    </div>
+
+    <!--Wykres-->
+    <div class="card" v-if="chartData !== null && showChart">
+      <Chart type="line" :data="chartData" :options="chartOptions" class="h-[500px]" />
     </div>
 
     <!--Zapis-->
@@ -97,15 +112,12 @@
     </div>
   </div>
 
-  <!--Blokada ekranu-->
-  <BlockUI :blocked="isBlocked" :fullScreen="true">
-    <template #default>
-      <div v-if="isBlocked" class="loading-overlay">
-        <ProgressSpinner style="width: 50px; height: 50px" strokeWidth="4" />
-        <p>Trwa przetwarzanie danych, proszę czekać...</p>
-      </div>
-    </template>
-  </BlockUI>
+  <!--Blokada ekranu na czas predykcji-->
+  <div v-if="isBlocked" class="custom-block-overlay">
+    <ProgressSpinner style="width: 50px; height: 50px" strokeWidth="4" />
+    <p>Trwa przetwarzanie danych, proszę czekać...</p>
+  </div>
+
 </template>
 
 <script setup>
@@ -122,6 +134,8 @@
   import ChargingPointsList from './ChargingPointsList.vue';
   import BlockUI from 'primevue/blockui';
   import ProgressSpinner from 'primevue/progressspinner';
+  import Chart from 'primevue/chart';
+  import ToggleSwitch from 'primevue/toggleswitch';
 
 
   const isBlocked = ref(false);
@@ -135,7 +149,12 @@
   const operators = ref([]);
   const selectedOperator = ref(null);
 
-  const predictValue = ref(null);;
+  const predictValue = ref(null);
+  const reversePercentile = ref(null);
+
+  const chartData = ref(null);
+  const chartOptions = ref();
+  const showChart = ref(false);
 
   const isSubmitting = ref(false);
 
@@ -220,6 +239,14 @@
       const response = await apiClient.get(`/projects/${projectId.value}`);
       const data = response.data
 
+
+      predictValue.value = data.prediction
+      reversePercentile.value = data.reversePercentile
+
+      if (predictValue.value !== null) {
+        prepareChart(data.usageChartData, predictValue.value)
+      }
+
       form.value = {
         name: data.name ?? '',
         description: data.description ?? '',
@@ -230,10 +257,6 @@
         chargingPoints: data.chargingPoints ?? [],
       };
 
-      // const cos1 = data.operatorId
-      // const cos2 = data.operator_id
-      // const projectOperatorId = data.operatorId ?? data.operator_id;
-      // if (projectOperatorId && operators.value.length > 0) {
       if (data.operatorId) {
         selectedOperator.value = operators.value.find(op => op.id === data.operatorId) || null;
       }
@@ -248,6 +271,57 @@
     await fetchDefaultUserOperator();
     await fetchProjectData();
   });
+
+  const prepareChart = (points, prediction) => {
+    chartData.value = {
+      datasets: [
+        {
+          label: 'Liczba stacji ładowania',
+          data: points,
+          borderColor: '#42A5F5',
+          backgroundColor: '#42A5F5',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 0
+        },
+        {
+            label: `Twój wynik (${prediction.toFixed(2)}%)`,
+          data: [
+            { x: prediction, y: 0 },
+            // { x: prediction, y: 100 }
+            { x: prediction, y: Math.max(...points.map(p => p.y)) }
+          ],
+          borderColor: '#FF3D00',
+          borderWidth: 3,
+          borderDash: [6, 6],
+          pointRadius: 0,
+          fill: false
+        }
+      ]
+    };
+
+    chartOptions.value = {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          type: 'linear',
+          min: 0,
+          max: 100,
+          ticks: {
+            stepSize: 10
+          },
+          title: {
+            display: true,
+            text: 'Współczynnik wykorzystania [%]'
+          }
+        },
+        y: {
+          beginAtZero: true
+        }
+      }
+    };
+  }
 
   const validate = () => {
     const errs = {};
@@ -290,6 +364,7 @@
         lat: form.value.location.lat,
         lng: form.value.location.lng,
         chargingPoints: form.value.chargingPoints,
+        prediction: predictValue.value,
       };
 
       const method = isEditing.value ? 'put' : 'post';
@@ -308,12 +383,9 @@
     if (!validate()) return;
 
     isBlocked.value = true;
+    //isSubmitting.value = true;
 
-    isSubmitting.value = true;
     try {
-
-
-
       const payload = {
         id: projectId.value,
         name: form.value.name.trim(),
@@ -329,13 +401,18 @@
 
       const response = await apiClient({ method, url, data: payload });
 
-      predictValue.value = `${(response.data * 100).toFixed(2)} %`
-      // router.push('/projects');
+      predictValue.value = (response.data.prediction);
+
+      reversePercentile.value = response.data.reversePercentile;
+
+      prepareChart(response.data.usageChartData, response.data.prediction)
     } catch (err) {
       console.error('Błąd podczas predyckji:', err);
     } finally {
-      isSubmitting.value = false;
+      //isSubmitting.value = false;
       isBlocked.value = false;
+
+      await nextTick();
     }
   };
 
@@ -378,5 +455,18 @@
 
   .location-field {
     padding-top: 0;
+  }
+
+  .custom-block-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    color: white;
   }
 </style>

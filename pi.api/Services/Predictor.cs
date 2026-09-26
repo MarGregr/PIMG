@@ -92,17 +92,29 @@ public class Predictor : IDisposable
             logAvgSessionPrice
         };
 
-        var inputTensor = new DenseTensor<float>(inputFeatures, new int[] { 1, 9 });
+        var inputTensor = new DenseTensor<float>(inputFeatures, new int[] { 1, inputFeatures.Length });
         var inputs = new List<NamedOnnxValue>
         {
             NamedOnnxValue.CreateFromTensor("float_input", inputTensor)
         };
 
-        //Precykcja obłożenia
+        //Predykcja obłożenia
         using var results = _session.Run(inputs);
         float rawPrediction = results.First().AsTensor<float>().First();
 
-        return Math.Clamp(rawPrediction, 0.0f, 1.0f);
+        double predictedShare = Expm1(rawPrediction);
+        predictedShare = Math.Clamp(predictedShare, 0.0f, 1.0f);
+        return (float)predictedShare;
+    }
+
+    static double Expm1(double x)
+    {
+        if (Math.Abs(x) < 1e-5)
+        {
+            //Rozwinięcie Taylora: e^x - 1 = x + (x^2)/2 dla małych x
+            return x + 0.5 * x * x;
+        }
+        return Math.Exp(x) - 1.0;
     }
 
     public void Dispose()

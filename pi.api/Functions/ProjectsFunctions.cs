@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
+using NetTopologySuite.Geometries;
 using Npgsql;
+using pi.api.Additional;
 using pi.api.Services;
 using System.Text.Json;
 
@@ -39,7 +41,7 @@ public class ProjectsFunctions
 
         //ST_Y pobiera szerokość (lat), ST_X pobiera długość (lng)
         cmd.CommandText = """
-            SELECT id, name, description, ST_Y(location::geometry) as lat, ST_X(location::geometry) as lng, operator_id, created_at, updated_at 
+            SELECT id, name, description, ST_Y(location::geometry) as lat, ST_X(location::geometry) as lng, operator_id, created_at, updated_at, prediction 
             FROM projects 
             WHERE user_id = @userId
             ORDER BY created_at DESC
@@ -60,7 +62,9 @@ public class ProjectsFunctions
                 OperatorId = reader.GetInt32(5),
                 UserId = userId,
                 CreatedAt = reader.GetDateTime(6),
-                UpdatedAt = reader.GetDateTime(7)
+                UpdatedAt = reader.GetDateTime(7),
+                Prediction = reader.IsDBNull(8) ? null : reader.GetDouble(8),
+
             });
         }
 
@@ -116,8 +120,8 @@ public class ProjectsFunctions
             {
                 cmd.Transaction = tx;
                 cmd.CommandText = """
-                INSERT INTO projects (id, name, description, location, operator_id, user_id, created_at, updated_at)
-                VALUES (@id, @name, @description, ST_GeomFromText(@point, 4326), @operatorId, @userId, @createdAt, @updatedAt)
+                INSERT INTO projects (id, name, description, location, operator_id, user_id, created_at, updated_at, prediction)
+                VALUES (@id, @name, @description, ST_GeomFromText(@point, 4326), @operatorId, @userId, @createdAt, @updatedAt, @prediction)
                 """;
 
                 cmd.Parameters.AddWithValue("id", projectId);
@@ -128,6 +132,7 @@ public class ProjectsFunctions
                 cmd.Parameters.AddWithValue("userId", userId);
                 cmd.Parameters.AddWithValue("createdAt", now);
                 cmd.Parameters.AddWithValue("updatedAt", now);
+                cmd.Parameters.AddWithValue("prediction", data.Prediction == null ? DBNull.Value : data.Prediction);
 
                 await cmd.ExecuteNonQueryAsync();
             }
@@ -210,7 +215,8 @@ public class ProjectsFunctions
                     UPDATE projects 
                     SET name = @name, description = @description, 
                     location = ST_GeomFromText(@point, 4326), updated_at = @updatedAt,
-                    operator_id = @operatorId
+                    operator_id = @operatorId,
+                    prediction = @prediction
                     WHERE id = @id AND user_id = @userId
                     """;
 
@@ -221,6 +227,7 @@ public class ProjectsFunctions
                 cmd.Parameters.AddWithValue("userId", userId);
                 cmd.Parameters.AddWithValue("operatorId", data.OperatorId);
                 cmd.Parameters.AddWithValue("updatedAt", now);
+                cmd.Parameters.AddWithValue("prediction", data.Prediction);
 
                 await cmd.ExecuteNonQueryAsync();
             }

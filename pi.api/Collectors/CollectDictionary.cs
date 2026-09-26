@@ -18,7 +18,6 @@ public class CollectDictionary
     {
         Console.WriteLine("Rozpoczynanie wczytywania słowników...");
 
-        // 1. Odczyt i deserializacja pliku JSON
         if (!File.Exists(filePath))
         {
             Console.WriteLine($"Błąd: Plik słownika nie istnieje pod ścieżką: {filePath}");

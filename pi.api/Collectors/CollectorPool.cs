@@ -85,6 +85,8 @@ public class CollectorPool : CollectorBase
                 await BulkInsertOperatingHours();
                 await BulkInsertClosingHours();
 
+                await UpdateKodWojPowiat();
+
                 //Dezaktywacja brakujących w bazie danych
                 await DeactivateMissingPools(ids);
             }
@@ -447,5 +449,20 @@ public class CollectorPool : CollectorBase
         cmd.Parameters.AddWithValue("apiIds", apiIds);
 
         countDeactivated = await cmd.ExecuteNonQueryAsync();
+    }
+
+
+    private async Task UpdateKodWojPowiat()
+    {
+        string sql = @"UPDATE pools p
+                       SET kod_woj_powiat = pp.kod_woj_powiat
+                       FROM powiaty_polygons pp
+                       WHERE ST_Contains(pp.polygon, p.location::geometry)
+                       AND p.kod_woj_powiat IS NULL;";
+
+
+        await using var cmd = new NpgsqlCommand(sql, conn);
+
+        await cmd.ExecuteNonQueryAsync();
     }
 }

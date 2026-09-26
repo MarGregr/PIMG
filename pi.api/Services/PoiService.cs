@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
@@ -14,8 +15,10 @@ public class PoiItem
     public double Distance { get; set; }
 }
 
+
 public class PoiService
 {
+    private readonly IMemoryCache _cache;
     private static readonly string[] TagPriorities = new[]
     {
         "railway", "amenity", "leisure", "office", "shop", "tourism"
@@ -27,14 +30,23 @@ public class PoiService
         Timeout = TimeSpan.FromSeconds(15)
     };
 
-    public PoiService()
+    public PoiService(IMemoryCache cache)
     {
         HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("pi/1.0.0");
         HttpClient.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        _cache = cache;
     }
+
 
     public async Task<List<PoiItem>> GetPois(double lng, double lat, int radius)
     {
+        string cacheKey = $"{lng}-{lat}-{radius}";
+
+        if (_cache.TryGetValue(cacheKey, out List<PoiItem>? cachedData))
+        {
+            return cachedData!;
+        }
+
         var stopwatch = Stopwatch.StartNew();
         Console.WriteLine($"Pobieranie POI przez Overpass API...");
 
@@ -90,6 +102,8 @@ public class PoiService
 
             //var finalPois = poisList.OrderBy(p => p.Distance).ToList();
             stopwatch.Stop();
+
+            _cache.Set(cacheKey, poisList);
 
             return poisList;
         }
