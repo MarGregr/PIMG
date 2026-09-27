@@ -24,8 +24,9 @@ public class ImportCepikDataFunction
 
     //Uruchomienie o 3:00 UTC(w nocy)
     [Function("ImportCepikVehiclesData")]
-    public async Task Run([TimerTrigger("0 47 16 * * *")] TimerInfo myTimer)
+    //public async Task Run([TimerTrigger("0 47 16 * * *")] TimerInfo myTimer)
     //public async Task Run([TimerTrigger("0 */1 * * * *")] TimerInfo myTimer)
+    public async Task Run([TimerTrigger("0 0 3 * * *")] TimerInfo myTimer)
     {
         if (!(_configuration.GetValue<bool>("ImportEnabled"))) return;
 
@@ -46,7 +47,7 @@ public class ImportCepikDataFunction
         {
             _logger.LogError($"[Timer] Błąd podczas wykonywania funkcji ImportCepikVehiclesData: {ex.Message}");
         }
-        
+
         await _summaryProcessor.RefreshSummaryAsync();
 
         _logger.LogInformation($"[Timer] Następne uruchomienie ImportCepikVehiclesData: {myTimer.ScheduleStatus?.Next}");

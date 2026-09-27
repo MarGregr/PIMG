@@ -18,7 +18,7 @@ public class ImportEipaDynamicDataFunctions
         _dataSource = dataSource;
         _configuration = configuration;
     }
-
+    //Uruchamiene co minutę
     [Function("ImportEipaDynamicData")]
     public async Task Run([TimerTrigger("0 */1 * * * *")] TimerInfo myTimer)
     {
