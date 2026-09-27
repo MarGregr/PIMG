@@ -5,9 +5,16 @@ using static pi.api.Additional.Predictor;
 
 namespace pi.api.Services;
 
+public enum ChargingPointMode
+{
+    AC = 0,
+    DC = 1
+};
+
 public class ProjectChargingPointDto
 {
     public Guid ProjectId { get; set; }
+    public ChargingPointMode Mode { get; set; }
     public int Power { get; set; }
     public decimal Price { get; set; }
 }
@@ -102,7 +109,7 @@ public class ProjectsService
         await using (var cpCmd = conn.CreateCommand())
         {
             cpCmd.CommandText = """
-            SELECT project_id, power, price
+            SELECT project_id, mode, power, price
             FROM projects_points
             WHERE project_id = @projectId
             """;
@@ -114,8 +121,9 @@ public class ProjectsService
                 project.ChargingPoints.Add(new ProjectChargingPointDto
                 {
                     ProjectId = cpReader.GetGuid(0),
-                    Power = cpReader.GetInt32(1),
-                    Price = (decimal)cpReader.GetInt32(2) / 100
+                    Mode = (ChargingPointMode)cpReader.GetInt32(1),
+                    Power = cpReader.GetInt32(2),
+                    Price = (decimal)cpReader.GetInt32(3) / 100
                 });
             }
         }
@@ -177,10 +185,18 @@ public class ProjectsService
     {
         using var predictor = new Predictor();
 
-        double avgSessionPrice = (double)project.ChargingPoints.Average(p => p.Price);
+        //double avgSessionPrice = (double)project.ChargingPoints.Average(p => p.Price);
+        var acPoints = project.ChargingPoints.Where(p => p.Mode == ChargingPointMode.AC);
+        var dcPoints = project.ChargingPoints.Where(p => p.Mode == ChargingPointMode.DC);
         int myOperatorId = project.OperatorId;
         int pointsCount = project.ChargingPoints.Count();
+        int pointsCountAC = acPoints.Count();
+        int pointsCountDC = dcPoints.Count();
         int totalPower = project.ChargingPoints.Sum(p => p.Power);
+        int totalPowerAC = acPoints.Sum(p => p.Power);
+        int totalPowerDC = dcPoints.Sum(p => p.Power);
+        double avgSessionPriceAC = acPoints.Select(p => (double)p.Price).DefaultIfEmpty(0).Average();
+        double avgSessionPriceDC = dcPoints.Select(p => (double)p.Price).DefaultIfEmpty(0).Average();
 
         int radius = 850;
         var bevCount = await _powiatyService.GetBevByLocation(project.Lng, project.Lat);
@@ -189,21 +205,29 @@ public class ProjectsService
         var nearestChargingDistance = await _poolsService.NearestPoolDistance(project.Lng, project.Lat, myOperatorId);
 
         var pois = await _poiService.GetPois(project.Lng, project.Lat, radius);
-        var amenities = pois.Count(o => o.PoiType1 == "amenity");
-        var tourism = pois.Count(o => o.PoiType1 == "tourism");
+        var amenities = GetPoiValue(pois, "amenity");
+        var tourism = GetPoiValue(pois, "tourism");
+        var shops = GetPoiValue(pois, "shop");
+        var offices = GetPoiValue(pois, "office");
+        var highway = pois.Any(o => o.PoiType1 == "highway" && o.Name.Contains("mop", StringComparison.OrdinalIgnoreCase) && o.Distance <= 400) ? 1.0 : 0.0;
 
         var modelData = new ModelInput
         {
-            BevCount = bevCount,
-            AvgSessionPrice = avgSessionPrice * 100, // bo model był trenowany na cenie w groszach
-            ChargingPools = chargingPools,
-            NearestChargingDistance = nearestChargingDistance,
+            PoolPointACCount = pointsCountAC,
+            PoolPointDCCount = pointsCountDC,
+            BevCountPerPoint = bevCount / pointsCount,
             PoolLat = project.Lat,
             PoolLon = project.Lng,
-            PoolPointCount = pointsCount,
-            TotalPower = totalPower,
-            Amenities = amenities,
-            Tourism = tourism,
+            TotalPowerACPerPoint = pointsCountAC > 0 ? totalPowerDC / pointsCountAC : 0,
+            TotalPowerDCPerPoint = pointsCountDC > 0 ? totalPowerDC / pointsCountDC : 0,
+            TourismPerPoint = tourism / pointsCount,
+            ShopsPerPoint = shops / pointsCount,
+            OfficesPerPoint = offices / pointsCount,
+            AmenitiesPerPoint = amenities / pointsCount,
+            HighwayMop = highway,
+            SmoothCompetitionIndex = CalculateSmoothCompetitonIndex(chargingPools, nearestChargingDistance),
+            AvgSessionPriceAC = avgSessionPriceAC * 100, // bo model był trenowany na cenie w groszach
+            AvgSessionPriceDC = avgSessionPriceDC * 100, // bo model był trenowany na cenie w groszach
         };
 
         var resultPrediction = predictor.PredictOccupancyRatio(modelData) * 100;
@@ -215,5 +239,23 @@ public class ProjectsService
             UsageChartData = await PrepareChartData(),
         };
         return result;
+
+    }
+
+    protected double CalculateSmoothCompetitonIndex(double chargingPools, double nearestChargingDistance)
+    {
+        return (chargingPools + 1.0) / ((nearestChargingDistance / 1000.0) + 0.1);
+    }
+
+    protected float GetPoiValue(List<PoiItem> pois, string poiType)
+    {
+        const float TAU = 300;
+        double result = 0;
+        var selectedPois = pois.Where(o => o.PoiType1 == poiType);
+        foreach (var poi in selectedPois)
+        {
+            result += Math.Exp(-poi.Distance / TAU);
+        }
+        return (float)result;
     }
 }

@@ -5,7 +5,22 @@
           :style="{ width: '50vw', maxWidth: '1000px' }"
           :draggable="false">
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+
+      <div class="field">
+        <label for="pointmode-select">Typ punktu</label>
+        <Select id="pointmode-select"
+                v-model="chargingPointData.mode"
+                :options="pointModeOptions"
+                optionLabel="label"
+                optionValue="value"
+                class="filter-select" />
+        <Message size="small" severity="error" v-if="errors.mode">{{ errors.mode }}</Message>
+      </div>
+
       <div class="field">
         <label for="powerInput">Moc</label>
         <InputNumber id="powerInput"
@@ -44,7 +59,6 @@
       <Button label="Anuluj" severity="secondary" @click="close" />
       <Button label="Zapisz"
               icon="pi pi-check"
-              :disabled="isSaveDisabled"
               @click="submitForm" />
     </template>
   </Dialog>
@@ -56,12 +70,20 @@
   import Button from 'primevue/button';
   import InputNumber from 'primevue/inputnumber';
   import Message from 'primevue/message';
+  import Select from 'primevue/select';
 
   const emit = defineEmits(['saved', 'close']);
 
   const visible = ref(false);
   const errors = ref({});
-  const chargingPointData = ref({ power: null, price: null });
+  const chargingPointData = ref({ mode: null, power: null, price: null, });
+
+  const pointModeOptions = computed(() => {
+    return [
+      { label: 'AC', value: 0 },
+      { label: 'DC', value: 1 },
+    ];
+  });
 
   const isPowerInvalid = computed(() => {
     const val = chargingPointData.value.power;
@@ -75,21 +97,12 @@
     return typeof val !== 'number' || isNaN(val) || val < 0;
   });
 
-  const isSaveDisabled = computed(() => {
-    const power = chargingPointData.value.power;
-    const price = chargingPointData.value.price;
-
-    const isPowerEmpty = power === null || power === undefined || power === '';
-    const isPriceEmpty = price === null || price === undefined || price === '';
-
-    return isPowerEmpty || isPriceEmpty || isPowerInvalid.value || isPriceInvalid.value;
-  });
-
   const open = (data = null) => {
     if (data) {
       chargingPointData.value = { ...data };
     } else {
       chargingPointData.value = {
+        mode: null,
         power: null,
         price: null
       };
@@ -105,21 +118,21 @@
 
   const validate = () => {
     const e = {};
-    if (isSaveDisabled.value) {
-      if (chargingPointData.value.power === null) e.power = 'Moc jest wymagana';
-      if (chargingPointData.value.price === null) e.price = 'Cena jest wymagana';
-      errors.value = e;
-      return false;
-    }
-    errors.value = {};
-    return true;
+    //let isError = false;
+
+    if (chargingPointData.value.mode === null) e.mode = 'Typ jest wymagany';
+    if (chargingPointData.value.power === null) e.power = 'Moc jest wymagana';
+    if (chargingPointData.value.price === null) e.price = 'Cena jest wymagana';
+    errors.value = e;
+    return !(e.mode || e.power || e.price);
   };
 
   const submitForm = () => {
     if (!validate()) return;
     emit('saved', {
+      mode: chargingPointData.value.mode,
       power: chargingPointData.value.power,
-      price: chargingPointData.value.price
+      price: chargingPointData.value.price,
     });
     close();
   };

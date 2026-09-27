@@ -10,13 +10,17 @@ public class Predictor : IDisposable
     public class ModelInput
     {
         /// <summary>
-        /// Liczba planowanych punktów ładowania (podaje użytkownik)
+        /// Liczba planowanych punktów ładowania AC (podaje użytkownik)
         /// </summary>
-        public double PoolPointCount { get; set; }
+        public double PoolPointACCount { get; set; }
         /// <summary>
-        /// Liczba pojazdów BEV w danych punkcie (powiecie)
+        /// Liczba planowanych punktów ładowania DC (podaje użytkownik)
         /// </summary>
-        public double BevCount { get; set; }
+        public double PoolPointDCCount { get; set; }
+        /// <summary>
+        /// Liczba pojazdów BEV podzielona przez liczbę punktów ładowania
+        /// </summary>
+        public double BevCountPerPoint { get; set; }
         /// <summary>
         /// Współrzędne punktu
         /// </summary>
@@ -26,29 +30,48 @@ public class Predictor : IDisposable
         /// </summary>
         public double PoolLat { get; set; }
         /// <summary>
-        /// Suma mocy punktów ładowania w kW (podaje użytkonwik)
+        /// Suma mocy punktów ładowania w kW AC podzielona przez liczbę punktów ładowania (podaje użytkonwik)
         /// </summary>
-        public double TotalPower { get; set; }
+        public double TotalPowerACPerPoint { get; set; }
         /// <summary>
-        /// Liczba POI w dane kategorii
+        /// Suma mocy punktów ładowania w kW DC podzielona przez liczbę punktów ładowania (podaje użytkonwik)
         /// </summary>
-        public double Tourism { get; set; }
-        public double Amenities { get; set; }
+        public double TotalPowerDCPerPoint { get; set; }
         /// <summary>
-        /// Liczba konkurencyjnych Pools w promieniu
+        /// Liczba POI w danej kategorii na punkt
         /// </summary>
-        public double ChargingPools { get; set; }
+        public double TourismPerPoint { get; set; }
         /// <summary>
-        /// Odległość do najbliższej stacji (Pool) konkurencji [m]
+        /// Liczba POI w danej kategorii na punkt
         /// </summary>
-        public double NearestChargingDistance { get; set; }
+        public double ShopsPerPoint { get; set; }
         /// <summary>
-        /// Śrfednia cena (podaje użytkownik)
+        /// Liczba POI w danej kategorii na punkt
         /// </summary>
-        public double AvgSessionPrice { get; set; }
+        public double OfficesPerPoint { get; set; }
+        /// <summary>
+        /// Liczba POI w danej kategorii na punkt
+        /// </summary>
+        public double AmenitiesPerPoint { get; set; }
+        /// <summary>
+        /// 1 - punkt MOP (Miejsce Obsługi Podróżnych) w odległości do 400 metrów
+        /// </summary>
+        public double HighwayMop { get; set; }
+        /// <summary>
+        /// TODO
+        /// </summary>
+        public double SmoothCompetitionIndex { get; set; }
+        /// <summary>
+        /// Śrfednia cena AC (podaje użytkownik)
+        /// </summary>
+        public double AvgSessionPriceAC { get; set; }
+        /// <summary>
+        /// Śrfednia cena DC (podaje użytkownik)
+        /// </summary>
+        public double AvgSessionPriceDC { get; set; }
     }
 
-    public Predictor(string modelPath = "model_random_forest.onnx")
+    public Predictor(string modelPath = "model_random_forest_mop.onnx")
     {
         if (!System.IO.File.Exists(modelPath))
         {
@@ -64,32 +87,39 @@ public class Predictor : IDisposable
 
     public float PredictOccupancyRatio(ModelInput input)
     {
-        //Feature Engineering
-        float bevPerPoint = (float)(input.BevCount / input.PoolPointCount);
-        float amenitiesPerPoint = (float)(input.Amenities / input.PoolPointCount);
-        float smoothCompetitionIndex = (float)((input.ChargingPools + 1.0) / ((input.NearestChargingDistance / 1000.0) + 0.1));
-
-        float logBevPerPoint = Log1p(bevPerPoint);
-        float logAmenitiesPerPoint = Log1p(amenitiesPerPoint);
-        float logSmoothCompetitionIndex = Log1p(smoothCompetitionIndex);
-        float logTotalPower = Log1p((float)input.TotalPower);
-        float logTourism = Log1p((float)input.Tourism);
-        float logAvgSessionPrice = Log1p((float)input.AvgSessionPrice);
+        float logBevPerPoint = Log1p((float)input.BevCountPerPoint);
+        float logAmenitiesPerPoint = Log1p((float)input.AmenitiesPerPoint);
+        float logShopsPerPoint = Log1p((float)input.ShopsPerPoint);
+        float logOfficesPerPoint = Log1p((float)input.OfficesPerPoint);
+        float logSmoothCompetitionIndex = Log1p((float)input.SmoothCompetitionIndex);
+        float logTotalPowerAC = Log1p((float)input.TotalPowerACPerPoint);
+        float logTotalPowerDC = Log1p((float)input.TotalPowerDCPerPoint);
+        float logTourismPerPoint = Log1p((float)input.TourismPerPoint);
+        float logAvgSessionPriceAC = Log1p((float)input.AvgSessionPriceAC);
+        float logAvgSessionPriceDC = Log1p((float)input.AvgSessionPriceDC);
+        float logHigwayMop = Log1p((float)input.HighwayMop);
 
         //Kolejność cech:
-        //['pool_point_count', 'bev_per_point', 'pool_lon', 'pool_lat', 
-        //'total_power', 'tourism', 'amenities_per_point', 'smooth_competition_index', 'avg_session_price']
+        //['pool_ac_point_count', 'pool_dc_point_count', 'bev_per_point', 'pool_lon', 'pool_lat', 
+        //'power_ac_per_point', 'power_dc_per_point', 'tourism_per_point', 'shops_per_point', 'offices_per_point',
+        //'amenities_per_point', 'highway_mop', smooth_competition_index', 'avg_ac_session_price', 'avg_dc_session_price']
         float[] inputFeatures = new float[]
         {
-            (float)input.PoolPointCount,
+            (float)input.PoolPointACCount,
+            (float)input.PoolPointDCCount,
             logBevPerPoint,
             (float)input.PoolLon,
             (float)input.PoolLat,
-            logTotalPower,
-            logTourism,
+            logTotalPowerAC,
+            logTotalPowerDC,
+            logTourismPerPoint,
+            logShopsPerPoint,
+            logOfficesPerPoint,
             logAmenitiesPerPoint,
+            logHigwayMop,
             logSmoothCompetitionIndex,
-            logAvgSessionPrice
+            logAvgSessionPriceAC,
+            logAvgSessionPriceDC
         };
 
         var inputTensor = new DenseTensor<float>(inputFeatures, new int[] { 1, inputFeatures.Length });

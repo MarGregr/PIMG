@@ -21,13 +21,13 @@ public class PoiService
     private readonly IMemoryCache _cache;
     private static readonly string[] TagPriorities = new[]
     {
-        "railway", "amenity", "leisure", "office", "shop", "tourism"
+        "amenity", "shop", "office", "tourism", "highway"
     };
 
     //HttpClient powienien być statyczny i przeznaczony do wielokrotnego użytku
     private static readonly HttpClient HttpClient = new HttpClient
     {
-        Timeout = TimeSpan.FromSeconds(15)
+        Timeout = TimeSpan.FromSeconds(30)
     };
 
     public PoiService(IMemoryCache cache)
@@ -122,12 +122,11 @@ public class PoiService
 
         string query = $@"[out:json][timeout:30];
 (
-  nwr[""railway""=""station""](around:{radStr},{latStr},{lngStr});
   nwr[""amenity""](around:{radStr},{latStr},{lngStr});
-  nwr[""leisure""~""^(stadium|beach_resort|bowling_alley|sports_centre|sports_hall)$""](around:{radStr},{latStr},{lngStr});
   nwr[""office""](around:{radStr},{latStr},{lngStr});
   nwr[""shop""](around:{radStr},{latStr},{lngStr});
   nwr[""tourism""](around:{radStr},{latStr},{lngStr});
+  nwr[""highway""~""^(services|rest_area)$""](around:{radStr},{latStr},{lngStr});
 );
 out center;";
 

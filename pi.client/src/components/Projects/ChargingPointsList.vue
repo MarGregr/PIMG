@@ -13,6 +13,12 @@
         </div>
       </template>
 
+      <Column field="mode" header="Typ" style="min-width: 180px">
+        <template #body="{ data }">
+          <span>{{ data.mode === 0 ? "AC" : (data.mode === 1 ? "DC" : "???") }}</span>
+        </template>
+      </Column>
+
       <Column field="power" header="Moc" style="min-width: 180px">
         <template #body="{ data }">
           <span>{{ data.power }} kW</span>
@@ -119,6 +125,7 @@
   };
 
   const onSaved = (payload) => {
+    console.log(payload);
     if (selectedIndex.value !== null) {
       chargingPoints.value[selectedIndex.value] = payload;
     } else {

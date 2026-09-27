@@ -86,4 +86,7 @@ FROM powiaty_polygons pp
 WHERE ST_Contains(pp.polygon, p.location::geometry)
   AND p.kod_woj_powiat IS NULL;
 
+ALTER TABLE projects_points
+ADD mode INTEGER NOT NULL DEFAULT 0;
+
 -- TO POWY¯EJ JU¯ WSZYSTKO W BAZIE DANYCH AZURE --

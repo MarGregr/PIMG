@@ -26,8 +26,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="model_random_forest.onnx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    <None Update="model_random_forest_mop.onnx">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 

@@ -144,10 +144,11 @@ public class ProjectsFunctions
                     await using var cpCmd = conn.CreateCommand();
                     cpCmd.Transaction = tx;
                     cpCmd.CommandText = """
-                    INSERT INTO projects_points (project_id, power, price)
-                    VALUES (@projectId, @power, @price)
+                    INSERT INTO projects_points (project_id, mode, power, price)
+                    VALUES (@projectId, @mode, @power, @price)
                     """;
                     cpCmd.Parameters.AddWithValue("projectId", projectId);
+                    cpCmd.Parameters.AddWithValue("mode", (int)point.Mode);
                     cpCmd.Parameters.AddWithValue("power", point.Power);
                     cpCmd.Parameters.AddWithValue("price", point.Price * 100);
                     await cpCmd.ExecuteNonQueryAsync();
@@ -227,7 +228,7 @@ public class ProjectsFunctions
                 cmd.Parameters.AddWithValue("userId", userId);
                 cmd.Parameters.AddWithValue("operatorId", data.OperatorId);
                 cmd.Parameters.AddWithValue("updatedAt", now);
-                cmd.Parameters.AddWithValue("prediction", data.Prediction);
+                cmd.Parameters.AddWithValue("prediction", data.Prediction == null ? DBNull.Value : data.Prediction);
 
                 await cmd.ExecuteNonQueryAsync();
             }
@@ -249,10 +250,11 @@ public class ProjectsFunctions
                     await using var cpCmd = conn.CreateCommand();
                     cpCmd.Transaction = tx;
                     cpCmd.CommandText = """
-                    INSERT INTO projects_points (project_id, power, price)
-                    VALUES (@projectId, @power, @price)
+                    INSERT INTO projects_points (project_id, mode, power, price)
+                    VALUES (@projectId, @mode, @power, @price)
                     """;
                     cpCmd.Parameters.AddWithValue("projectId", id);
+                    cpCmd.Parameters.AddWithValue("mode", (int)point.Mode);
                     cpCmd.Parameters.AddWithValue("power", point.Power);
                     cpCmd.Parameters.AddWithValue("price", point.Price * 100);
                     await cpCmd.ExecuteNonQueryAsync();

@@ -101,6 +101,12 @@
     box-shadow: 0 2px 1px -1px rgba(0,0,0,.2), 0 1px 1px 0 rgba(0,0,0,.14), 0 1px 3px 0 rgba(0,0,0,.12);
   }
 
+  .filter-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
   .h-30rem {
     height: 30rem;
   }
@@ -119,20 +125,15 @@
     margin-top: 1.5rem;
   }
 
-  /* Kolor dla globalnego motywu PrimeVue w kolumnie Suma */
   :deep(.text-primary) {
     font-weight: 600;
 /*    color: var(--primary-color, #42A5F5) !important;*/
   }
 
-  /* Wyrównanie do prawej w datatable */
-
-  /* Wyrównanie samych liczb w komórkach */
   :deep(.text-right) {
     text-align: right !important;
   }
 
-  /* Wyrównanie tekstu, nagłówka i strzałki sortowania (Flexbox) */
   :deep(.text-right-header) {
     text-align: right !important;
     justify-content: flex-end !important;

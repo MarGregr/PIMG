@@ -7,8 +7,6 @@ namespace pi.api.Functions;
 
 public class TestFunctions
 {
-  
-
     // GET /api/favorites/pools
     [Function("Test")]
     [AllowAnonymous]
